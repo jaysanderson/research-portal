@@ -217,6 +217,50 @@ app.get('/api/crawl', async (req, res) => {
   }
 });
 
+// Knowledge graph derived from real corpus classification co-occurrence.
+// Nodes = vendors + topics; edges = how many resources link a vendor to a topic.
+async function kbCatalogFacet(facetKey, filters) {
+  const url = new URL(`${KB_URL}/catalog`);
+  url.searchParams.set('faceted', facetKey);
+  url.searchParams.set('page_size', '0');
+  (filters || []).forEach((f) => url.searchParams.append('filters', f));
+  const r = await fetch(url, { headers: { 'X-NUCLIA-SERVICEACCOUNT': `Bearer ${READER_KEY}` } });
+  const d = await r.json();
+  const node = (d.fulltext?.facets || d.facets || {})[facetKey] || {};
+  const out = {};
+  for (const [tag, count] of Object.entries(node)) out[tag.split('/').pop()] = count;
+  return out;
+}
+
+app.get('/api/graph', async (req, res) => {
+  if (!KB_CONFIGURED) return res.status(503).json({ detail: 'Knowledge Box not configured on server.' });
+  const primary = String(req.query.primary || 'vendor');
+  const secondary = String(req.query.secondary || 'topic');
+  try {
+    const primaryCounts = await kbCatalogFacet(`/classification.labels/${primary}`);
+    const primaryLabels = Object.keys(primaryCounts);
+    // co-occurrence: for each primary label, topic facet filtered to it
+    const cooc = await Promise.all(primaryLabels.map(async (label) => {
+      const sec = await kbCatalogFacet(`/classification.labels/${secondary}`, [`/classification.labels/${primary}/${label}`]);
+      return { label, sec };
+    }));
+    const nodes = [];
+    const edges = [];
+    const secTotals = {};
+    for (const [label, count] of Object.entries(primaryCounts)) nodes.push({ id: `p:${label}`, label, group: primary, weight: count });
+    for (const { label, sec } of cooc) {
+      for (const [s, c] of Object.entries(sec)) {
+        secTotals[s] = (secTotals[s] || 0) + c;
+        edges.push({ source: `p:${label}`, target: `s:${s}`, weight: c });
+      }
+    }
+    for (const [s, total] of Object.entries(secTotals)) nodes.push({ id: `s:${s}`, label: s, group: secondary, weight: total });
+    res.json({ primary, secondary, nodes, edges });
+  } catch (err) {
+    res.status(502).json({ detail: 'Graph build failed', error: String(err).slice(0, 200) });
+  }
+});
+
 // Static SPA (production)
 const DIST = join(ROOT, 'dist');
 if (existsSync(DIST)) {

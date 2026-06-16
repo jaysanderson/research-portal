@@ -57,7 +57,7 @@ docker build -t research-portal . && docker run -p 8787:8787 --env-file .env res
 - [x] **S4** — Streaming assistant, global floating chat, resource viewer with resource-scoped chat
 - [x] **S5** — Agentic pipeline inspector, context chunks, token/timing telemetry, trace history + feedback
 - [x] **S6** — ARAG agent client (multi-driver streamAgent), driver catalog, REMi gauge, pipeline steps (auto-activates with a connected agent)
-- [ ] S7 — Knowledge graph
+- [x] **S7** — D3 knowledge graph from corpus co-occurrence (vendor↔topic / ↔type) with node drill-down
 - [ ] S8 — Structured outputs & assessments
 - [ ] S9 — Research workspace
 - [ ] S10 — Governance, analytics, embed
