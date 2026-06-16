@@ -264,9 +264,17 @@ app.get('/api/graph', async (req, res) => {
 // Static SPA (production)
 const DIST = join(ROOT, 'dist');
 if (existsSync(DIST)) {
+  // Content-hashed bundles never change for a given URL -> cache hard.
+  app.use('/assets', express.static(join(DIST, 'assets'), { immutable: true, maxAge: '365d' }));
+  // Other static files (favicon, etc.) -> modest cache.
   app.use(express.static(DIST, { index: false, maxAge: '1h' }));
+  // index.html must NOT be cached, so a new deploy is picked up immediately
+  // and the browser never references a stale (deleted) bundle hash -> no blank pages.
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.sendFile(join(DIST, 'index.html'));
   });
 }
