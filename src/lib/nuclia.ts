@@ -92,11 +92,22 @@ export async function listCatalog(opts: {
   return { resources, total };
 }
 
-export async function find(query: string, opts: { filters?: string[]; pageSize?: number } = {}): Promise<FindResult[]> {
+export type RetrievalMode = 'keyword' | 'semantic' | 'hybrid';
+const FEATURES: Record<RetrievalMode, string[]> = {
+  keyword: ['keyword'],
+  semantic: ['semantic'],
+  hybrid: ['keyword', 'semantic'],
+};
+
+export function vendorFilter(labelset: string, label: string) {
+  return `/classification.labels/${labelset}/${label}`;
+}
+
+export async function find(query: string, opts: { filters?: string[]; pageSize?: number; mode?: RetrievalMode } = {}): Promise<FindResult[]> {
   const body: any = {
     query,
-    features: ['keyword', 'semantic'],
-    page_size: opts.pageSize ?? 12,
+    features: FEATURES[opts.mode || 'hybrid'],
+    page_size: opts.pageSize ?? 20,
     show: ['basic', 'origin'],
   };
   if (opts.filters?.length) body.filters = opts.filters;

@@ -53,7 +53,7 @@ docker build -t research-portal . && docker run -p 8787:8787 --env-file .env res
 - [x] **S0** — Scaffold, proxy server, KB-aware dashboard, Fly deploy
 - [x] **S1** — Ingestion core: file upload, paste-text, link ingestion, live status
 - [x] **S2** — Website/sitemap crawl ingestion + taxonomy (labelset) manager with facet counts
-- [ ] S3 — Search & discovery
+- [x] **S3** — Hybrid/semantic/keyword search, streaming AI answer + citations, facet filters, library
 - [ ] S4 — Assistant & resource viewer
 - [ ] S5 — Agentic retrieval engine
 - [ ] S6 — Multi-driver & MCP
