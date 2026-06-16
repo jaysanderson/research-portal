@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Upload, Search, MessageSquare, Workflow, FileText, Layers, Hash, Tags, ArrowRight } from 'lucide-react';
-import { useConfig, useCounters } from '../lib/hooks';
+import { useCurrentKb, useCounters } from '../lib/hooks';
 import { getLabelsets } from '../lib/nuclia';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
 
 export default function DashboardPage() {
-  const config = useConfig();
+  const kb = useCurrentKb();
   const { counters } = useCounters();
   const [taxonomies, setTaxonomies] = useState<number | undefined>(undefined);
 
@@ -19,10 +19,9 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
       <PageHeader title="Research Portal" description="Search, chat with, and reason over your knowledge base." />
 
-      {config && !config.kbConfigured && (
+      {kb && !kb.connected && (
         <div className="card mb-6 border-accent-200 bg-accent-50 p-4 text-sm text-accent-700">
-          No Knowledge Box is configured on the server. Set <code className="font-mono">NUCLIA_KB_URL</code> and{' '}
-          <code className="font-mono">NUCLIA_API_KEY</code>, then restart.
+          <strong>{kb.name}</strong> isn’t reachable right now. Check its server credentials, or switch Knowledge Box from the sidebar.
         </div>
       )}
 

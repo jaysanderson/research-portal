@@ -1,5 +1,5 @@
 // Knowledge Box client — all calls go through the server proxy (/api/kb/*).
-import { kb, streamNdjson } from './api';
+import { kb, streamNdjson, kbHeaders } from './api';
 
 // Single shared generation prompt used by EVERY answer surface (Search, Assistant,
 // Agentic, structured). Nuclia's default RAG prompt emits "Not enough data to
@@ -246,7 +246,7 @@ export async function createTextResource(input: { title: string; body: string; f
 export async function uploadFile(file: File, opts: { labels?: Classification[] } = {}): Promise<string> {
   const res = await fetch('/api/upload', {
     method: 'POST',
-    headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name) },
+    headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name), ...kbHeaders() },
     body: file,
   });
   if (!res.ok) throw new Error(`upload -> ${res.status}: ${(await res.text()).slice(0, 200)}`);
@@ -275,7 +275,7 @@ export async function createLabelset(id: string, title: string, opts: { color?: 
 }
 
 export async function crawlSite(url: string, limit = 40): Promise<{ source: string; links: string[] }> {
-  const res = await fetch(`/api/crawl?url=${encodeURIComponent(url)}&limit=${limit}`);
+  const res = await fetch(`/api/crawl?url=${encodeURIComponent(url)}&limit=${limit}`, { headers: kbHeaders() });
   if (!res.ok) throw new Error(`crawl -> ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return res.json();
 }

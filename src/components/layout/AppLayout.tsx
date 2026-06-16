@@ -5,7 +5,9 @@ import {
   Upload, FlaskConical, BarChart3, Tags, Sparkles, ShieldCheck, Menu, X,
 } from 'lucide-react';
 import { Logo } from '../Logo';
-import { useConfig } from '../../lib/hooks';
+import { KbSwitcher } from '../KbSwitcher';
+import { useCurrentKb } from '../../lib/hooks';
+import type { KbInfo } from '../../lib/api';
 
 export interface NavItem { to: string; label: string; icon: ReactNode; section: string }
 
@@ -29,7 +31,7 @@ function currentItem(path: string) {
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const config = useConfig();
+  const kb = useCurrentKb();
   const loc = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -44,7 +46,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-ink-50">
-      <Sidebar config={config} drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <Sidebar kb={kb} drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-ink-200 bg-ink-50/85 px-4 backdrop-blur md:px-8">
@@ -59,7 +61,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <kbd className="rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 font-sans text-[10px] text-ink-400">⌘K</kbd>
           </button>
           <div className="ml-auto flex items-center gap-2">
-            <KbStatus config={config} compact />
+            <KbStatus kb={kb} compact />
           </div>
         </header>
         <main className="flex-1">{children}</main>
@@ -68,7 +70,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   );
 }
 
-function Sidebar({ config, drawerOpen, onClose }: { config: ReturnType<typeof useConfig>; drawerOpen: boolean; onClose: () => void }) {
+function Sidebar({ kb, drawerOpen, onClose }: { kb: KbInfo | null; drawerOpen: boolean; onClose: () => void }) {
   return (
     <>
       {drawerOpen && <div className="fixed inset-0 z-40 bg-ink-900/30 md:hidden" onClick={onClose} aria-hidden />}
@@ -77,15 +79,16 @@ function Sidebar({ config, drawerOpen, onClose }: { config: ReturnType<typeof us
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between px-5 py-5">
+        <div className="flex items-center justify-between px-5 pb-3 pt-5">
           <NavLink to="/" aria-label="Research Portal home"><Logo /></NavLink>
           <button onClick={onClose} className="btn-ghost px-1.5 md:hidden" aria-label="Close navigation"><X size={18} /></button>
         </div>
-        <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 pb-4">
+        <KbSwitcher />
+        <nav aria-label="Primary" className="flex-1 overflow-y-auto px-3 pb-4 pt-1">
           <NavSections />
         </nav>
         <div className="border-t border-ink-200 px-5 py-4">
-          <KbStatus config={config} />
+          <KbStatus kb={kb} />
         </div>
       </aside>
     </>
@@ -130,14 +133,14 @@ function NavSections() {
   );
 }
 
-function KbStatus({ config, compact }: { config: ReturnType<typeof useConfig>; compact?: boolean }) {
-  const loading = config === null;
-  const connected = config?.kbConfigured;
+function KbStatus({ kb, compact }: { kb: KbInfo | null; compact?: boolean }) {
+  const loading = kb === null;
+  const connected = kb?.connected;
   if (compact) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-2.5 py-1 text-xs font-medium text-ink-600">
         <span className={`h-1.5 w-1.5 rounded-full ${loading ? 'bg-ink-300 animate-pulse' : connected ? 'bg-brand-500' : 'bg-accent-400'}`} />
-        {loading ? 'Connecting…' : connected ? 'KB connected' : 'KB offline'}
+        {loading ? 'Connecting…' : connected ? 'Connected' : 'Offline'}
       </span>
     );
   }
@@ -145,8 +148,8 @@ function KbStatus({ config, compact }: { config: ReturnType<typeof useConfig>; c
     <div className="flex items-center gap-2">
       <span className={`h-2 w-2 rounded-full ${loading ? 'bg-ink-300 animate-pulse' : connected ? 'bg-brand-500' : 'bg-accent-400'}`} />
       <div className="min-w-0 leading-tight">
-        <div className="text-xs font-semibold text-ink-700">{loading ? 'Connecting…' : connected ? 'Knowledge Box connected' : 'Not configured'}</div>
-        {config?.zone && <div className="truncate text-[10px] text-ink-400">{config.zone}</div>}
+        <div className="truncate text-xs font-semibold text-ink-700">{loading ? 'Connecting…' : kb?.name || 'No Knowledge Box'}</div>
+        {kb?.zone && <div className="truncate text-[10px] text-ink-400">{kb.zone}</div>}
       </div>
     </div>
   );

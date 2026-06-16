@@ -17,7 +17,16 @@ function Bar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-export function RemiGauge({ remi }: { remi: RemiScore | null }) {
+export function RemiGauge({ remi, connected }: { remi: RemiScore | null; connected?: boolean }) {
+  // Agent connected but no REMi for this turn — neutral, not an invite.
+  if (!remi && connected) {
+    return (
+      <div className="card p-4">
+        <div className="mb-2 t-overline">REMi quality</div>
+        <p className="text-xs text-ink-500">Not reported for this turn.</p>
+      </div>
+    );
+  }
   // No dead gauge: when REMi isn't available, invite the user to enable it.
   if (!remi) {
     return (

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Server, KeyRound, Users, Code2, Copy, Check } from 'lucide-react';
+import { Database, KeyRound, Users, Code2, Copy, Check } from 'lucide-react';
 import { useConfig } from '../lib/hooks';
 import { PageHeader } from '../components/PageHeader';
 
@@ -17,13 +17,32 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
       <PageHeader title="Governance & settings" description="Security posture, access control, and embedding." />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Panel icon={<Server size={16} />} title="Knowledge Box">
-          <Row label="Status" value={config?.kbConfigured ? 'Connected' : 'Not configured'} ok={config?.kbConfigured} />
-          <Row label="Zone" value={config?.zone || '—'} />
-          <Row label="KB id" value={config?.kbId ? `${config.kbId.slice(0, 8)}…` : '—'} />
-          <Row label="ARAG agent" value={config?.aragConfigured ? 'Connected' : 'KB-pipeline mode'} ok={config?.aragConfigured} />
-        </Panel>
+      <Panel icon={<Database size={16} />} title={`Knowledge Boxes (${config?.kbs?.length ?? 0})`}>
+        {!config ? (
+          <div className="skeleton h-12 w-full" />
+        ) : config.kbs.length === 0 ? (
+          <p className="text-sm text-ink-500">None configured on the server.</p>
+        ) : (
+          <div className="divide-y divide-ink-100">
+            {config.kbs.map((kb) => (
+              <div key={kb.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                <span className={`h-2 w-2 rounded-full ${kb.connected ? 'bg-brand-500' : 'bg-accent-400'}`} />
+                <span className="font-medium text-ink-900">{kb.name}</span>
+                <span className="chip">{kb.zone || kb.id}</span>
+                <span className="ml-auto flex items-center gap-2 text-xs">
+                  <span className={kb.connected ? 'font-medium text-brand-700' : 'text-accent-600'}>{kb.connected ? 'Connected' : 'Not connected'}</span>
+                  <span className={kb.aragConfigured ? 'rounded bg-accent-50 px-1.5 py-0.5 font-semibold text-accent-700' : 'text-ink-400'}>
+                    {kb.aragConfigured ? 'Agent ready' : 'No agent'}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-2 text-xs text-ink-400">Switch the active box from the sidebar. A box is disabled until the server can reach it. Add more by setting <code className="font-mono">NUCLIA_KB2_*</code> secrets.</p>
+      </Panel>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Panel icon={<KeyRound size={16} />} title="Credential security">
           <p className="text-sm text-ink-600">The Nuclia service-account key is held <strong>server-side only</strong> (Fly secret) and never reaches the browser. All Knowledge Box traffic is proxied through <code className="font-mono text-xs">/api/kb</code>.</p>
           <ul className="mt-2 space-y-1 text-sm text-ink-600">

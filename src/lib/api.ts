@@ -1,23 +1,55 @@
 // Thin wrappers around the server proxy. The browser never sees a Nuclia key.
 
-export interface PortalConfig {
-  kbConfigured: boolean;
-  aragConfigured: boolean;
-  generativeModel: string | null;
-  kbId: string | null;
+export interface KbInfo {
+  id: string;
+  name: string;
+  kbId: string;
   zone: string | null;
+  connected: boolean;
+  aragConfigured: boolean;
+}
+
+export interface PortalConfig {
+  generativeModel: string | null;
+  kbs: KbInfo[];
 }
 
 let _config: PortalConfig | null = null;
 
-export async function getConfig(): Promise<PortalConfig> {
-  if (_config) return _config;
+// ---- Selected Knowledge Box (persisted) ----
+const KB_KEY = 'rp_kb';
+let _selectedKbId: string = (typeof localStorage !== 'undefined' && localStorage.getItem(KB_KEY)) || '';
+
+export function getSelectedKbId(): string { return _selectedKbId; }
+export function setSelectedKbId(id: string) {
+  _selectedKbId = id;
+  try { localStorage.setItem(KB_KEY, id); } catch { /* */ }
+  window.dispatchEvent(new Event('rp-kb-change'));
+}
+/** Header that tells the proxy which KB to route to. */
+export function kbHeaders(): Record<string, string> {
+  return _selectedKbId ? { 'x-kb': _selectedKbId } : {};
+}
+
+export async function getConfig(force = false): Promise<PortalConfig> {
+  if (_config && !force) return _config;
   const res = await fetch('/api/config');
   _config = await res.json();
+  // If nothing selected yet (or selection no longer exists), default to first connected.
+  const ids = new Set((_config!.kbs || []).map((k) => k.id));
+  if (!_selectedKbId || !ids.has(_selectedKbId)) {
+    const first = (_config!.kbs || []).find((k) => k.connected) || _config!.kbs?.[0];
+    if (first) _selectedKbId = first.id;
+  }
   return _config!;
 }
 
-/** KB JSON request through the proxy. `path` is the KB subpath, e.g. 'counters', 'find'. */
+export function currentKb(config: PortalConfig | null): KbInfo | null {
+  if (!config?.kbs?.length) return null;
+  return config.kbs.find((k) => k.id === _selectedKbId) || config.kbs.find((k) => k.connected) || config.kbs[0];
+}
+
+/** KB JSON request through the proxy. */
 export async function kb<T = unknown>(
   path: string,
   init: RequestInit & { query?: Record<string, string | number | (string | number)[]> } = {}
@@ -34,7 +66,7 @@ export async function kb<T = unknown>(
   }
   const res = await fetch(url, {
     ...rest,
-    headers: { 'Content-Type': 'application/json', ...(rest.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...kbHeaders(), ...(rest.headers || {}) },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -51,7 +83,7 @@ export async function* streamNdjson(
 ): AsyncGenerator<Record<string, unknown>> {
   const res = await fetch(url, {
     ...init,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...(init.headers || {}) },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...kbHeaders(), ...(init.headers || {}) },
   });
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');

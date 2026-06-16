@@ -11,7 +11,7 @@ import {
 } from '../lib/agentic';
 import { streamAgent } from '../lib/aragAgent';
 import { isRefusal, type Citation } from '../lib/nuclia';
-import { useConfig } from '../lib/hooks';
+import { useCurrentKb } from '../lib/hooks';
 import { renderMarkdown, toPlainText } from '../lib/markdown';
 import { PageHeader } from '../components/PageHeader';
 import { Citations } from '../components/Citations';
@@ -39,7 +39,8 @@ function strength(score: number): 1 | 2 | 3 {
 }
 
 export default function AgenticPage() {
-  const config = useConfig();
+  const kb = useCurrentKb();
+  const aragOn = !!(kb?.aragConfigured && kb?.connected);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
   const [activeStages, setActiveStages] = useState<Record<StageId, string | undefined>>({} as any);
@@ -77,7 +78,7 @@ export default function AgenticPage() {
     let acc = ''; let cites: Citation[] = []; let chk: ContextChunk[] = []; let cons: Consumption | undefined;
     let stepList: PipelineStep[] = []; let remiScore: RemiScore | undefined;
 
-    const gen = config?.aragConfigured
+    const gen = aragOn
       ? streamAgent(query, { sessionId: sessionRef.current, signal: ctrl.signal })
       : askAgentic(query, { signal: ctrl.signal });
 
@@ -115,7 +116,7 @@ export default function AgenticPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <PageHeader title="Agentic retrieval"
-        description="Ask a complex question and get a grounded, cited answer. Open “Show reasoning” to inspect the full retrieval pipeline." />
+        description={`Ask a complex question and get a grounded, cited answer. Open “Show reasoning” to inspect the full pipeline.${aragOn ? ' Multi-driver agent active.' : ' KB-pipeline mode — connect an ARAG agent for multi-driver + REMi.'}`} />
 
       <form onSubmit={(e) => { e.preventDefault(); run(input); }} className="flex gap-2">
         <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Ask an agentic question"
@@ -224,9 +225,9 @@ export default function AgenticPage() {
                   </div>
 
                   <aside className="space-y-4">
-                    <RemiGauge remi={remi} />
+                    <RemiGauge remi={remi} connected={aragOn} />
                     <ConsumptionReadout c={consumption} running={running} />
-                    <DriverPanel activeModules={activeModules} aragConfigured={!!config?.aragConfigured} />
+                    <DriverPanel activeModules={activeModules} aragConfigured={aragOn} />
                   </aside>
                 </div>
               )}
