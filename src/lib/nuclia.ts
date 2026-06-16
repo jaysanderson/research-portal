@@ -229,15 +229,14 @@ export async function crawlSite(url: string, limit = 40): Promise<{ source: stri
 
 /** Facet counts for a labelset, e.g. getFacets('vendor') -> { 'Progress Sitefinity': 20, ... } */
 export async function getFacets(labelset: string): Promise<Record<string, number>> {
-  const data = await kb<any>('catalog', { query: { faceted: `/classification.labels/${labelset}`, page_size: 0 } });
-  const facets = data.facets || data.fulltext?.facets || {};
-  const node = facets[`/classification.labels/${labelset}`];
+  const key = `/classification.labels/${labelset}`;
+  const data = await kb<any>('catalog', { query: { faceted: key, page_size: 0 } });
+  const facets = data.fulltext?.facets || data.facets || {};
+  const node = facets[key] || {};
   const out: Record<string, number> = {};
-  const results = node?.facetresults || node?.facetResults || (Array.isArray(node) ? node : []);
-  for (const r of results) {
-    const tag: string = r.tag || r.facet || '';
-    const label = tag.split('/').pop() || tag;
-    out[label] = r.total ?? r.count ?? 0;
+  // Nuclia catalog returns a flat map: { "/classification.labels/<set>/<label>": count }
+  for (const [tag, count] of Object.entries(node)) {
+    out[tag.split('/').pop() || tag] = count as number;
   }
   return out;
 }

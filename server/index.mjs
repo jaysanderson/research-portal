@@ -184,15 +184,21 @@ app.get('/api/crawl', async (req, res) => {
     const ct = r.headers.get('content-type') || '';
     const text = await r.text();
     const origin = new URL(target).origin;
+    const decode = (s) => s.replace(/&amp;/g, '&').replace(/&#38;/g, '&').replace(/&quot;/g, '"');
+    const isSitemap = ct.includes('xml') || target.endsWith('.xml') || /<urlset|<sitemapindex/.test(text);
     let links = [];
-    if (ct.includes('xml') || target.endsWith('.xml') || /<urlset|<sitemapindex/.test(text)) {
-      links = [...text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);
+    if (isSitemap) {
+      links = [...text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => decode(m[1]));
     } else {
-      const hrefs = [...text.matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)].map((m) => m[1]);
+      const hrefs = [...text.matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)].map((m) => decode(m[1]));
       links = hrefs
         .map((h) => { try { return new URL(h, target).href; } catch { return null; } })
         .filter((h) => h && h.startsWith('http'))
-        .filter((h) => new URL(h).origin === origin);
+        .filter((h) => new URL(h).origin === origin)
+        // drop infra / non-article paths and query-string URLs in HTML mode
+        .filter((h) => !/[?]/.test(h))
+        .filter((h) => !/\/(w|wp-json|cdn-cgi|load\.php|api\.php|rest\.php|static|assets)\//i.test(h))
+        .filter((h) => !/\/(Special:|Talk:|Help:|Category:|File:|Template:|Portal:)/i.test(h));
     }
     // dedupe, drop assets, cap
     const seen = new Set();
