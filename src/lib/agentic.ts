@@ -26,12 +26,26 @@ export interface Consumption {
   totalSec?: number;
 }
 
+export interface RemiScore { relevance?: number; groundedness?: number }
+
+export interface PipelineStep {
+  id: string;
+  module: string;   // driver/module name (nucliadb, perplexity, cypher, mcp_http, ...)
+  label: string;    // human-friendly
+  stage: StageId;
+  reason?: string;
+  durationMs?: number;
+  chunks?: number;
+}
+
 export type AgenticEvent =
   | { kind: 'start' }
   | { kind: 'stage'; stage: StageId; detail?: string }
+  | { kind: 'step'; step: PipelineStep }
   | { kind: 'chunks'; chunks: ContextChunk[] }
   | { kind: 'answer'; text: string }
   | { kind: 'citations'; citations: Citation[] }
+  | { kind: 'remi'; remi: RemiScore }
   | { kind: 'consumption'; consumption: Consumption }
   | { kind: 'done' }
   | { kind: 'error'; message: string };
@@ -45,6 +59,8 @@ export interface TurnTrace {
   answer: string;
   citations: Citation[];
   consumption?: Consumption;
+  remi?: RemiScore;
+  steps?: PipelineStep[];
   stages: { stage: StageId; at: number }[];
   feedback?: 'up' | 'down';
 }

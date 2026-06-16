@@ -7,10 +7,14 @@ import {
 import {
   askAgentic, loadTraces, saveTrace, updateTraceFeedback,
   type AgenticEvent, type ContextChunk, type Consumption, type StageId, type TurnTrace,
+  type PipelineStep, type RemiScore,
 } from '../lib/agentic';
+import { streamAgent } from '../lib/aragAgent';
 import type { Citation } from '../lib/nuclia';
 import { useConfig } from '../lib/hooks';
 import { renderMarkdown } from '../lib/markdown';
+import { RemiGauge } from '../components/agentic/RemiGauge';
+import { DriverPanel } from '../components/agentic/DriverPanel';
 
 const STAGES: { id: StageId; label: string; icon: React.ReactNode }[] = [
   { id: 'preprocess', label: 'Preprocess', icon: <Cpu size={15} /> },
@@ -34,9 +38,13 @@ export default function AgenticPage() {
   const [answer, setAnswer] = useState('');
   const [citations, setCitations] = useState<Citation[]>([]);
   const [consumption, setConsumption] = useState<Consumption | null>(null);
+  const [steps, setSteps] = useState<PipelineStep[]>([]);
+  const [remi, setRemi] = useState<RemiScore | null>(null);
+  const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
   const [question, setQuestion] = useState('');
   const [traces, setTraces] = useState<TurnTrace[]>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const sessionRef = useRef<string>(`sess-${Math.random().toString(36).slice(2)}`);
 
   useEffect(() => { setTraces(loadTraces()); }, []);
 
@@ -47,16 +55,24 @@ export default function AgenticPage() {
     const ctrl = new AbortController(); abortRef.current = ctrl;
     setRunning(true); setQuestion(query); setActiveStages({} as any);
     setChunks([]); setAnswer(''); setCitations([]); setConsumption(null);
+    setSteps([]); setRemi(null); setActiveModules(new Set());
     const startedAt = Date.now();
     const stages: { stage: StageId; at: number }[] = [];
     let acc = ''; let cites: Citation[] = []; let chk: ContextChunk[] = []; let cons: Consumption | undefined;
+    let stepList: PipelineStep[] = []; let remiScore: RemiScore | undefined;
+
+    const gen = config?.aragConfigured
+      ? streamAgent(query, { sessionId: sessionRef.current, signal: ctrl.signal })
+      : askAgentic(query, { signal: ctrl.signal });
 
     try {
-      for await (const ev of askAgentic(query, { signal: ctrl.signal }) as AsyncGenerator<AgenticEvent>) {
+      for await (const ev of gen as AsyncGenerator<AgenticEvent>) {
         if (ev.kind === 'stage') { setActiveStages((s) => ({ ...s, [ev.stage]: ev.detail })); stages.push({ stage: ev.stage, at: Date.now() - startedAt }); }
+        else if (ev.kind === 'step') { stepList = [...stepList, ev.step]; setSteps(stepList); setActiveModules((m) => new Set(m).add(ev.step.module)); }
         else if (ev.kind === 'chunks') { chk = ev.chunks; setChunks(ev.chunks); }
         else if (ev.kind === 'answer') { acc += ev.text; setAnswer(acc); }
         else if (ev.kind === 'citations') { cites = ev.citations; setCitations(ev.citations); }
+        else if (ev.kind === 'remi') { remiScore = ev.remi; setRemi(ev.remi); }
         else if (ev.kind === 'consumption') { cons = ev.consumption; setConsumption(ev.consumption); }
         else if (ev.kind === 'error') { acc = acc || `Error: ${ev.message}`; setAnswer(acc); }
       }
@@ -65,7 +81,7 @@ export default function AgenticPage() {
       if (!ctrl.signal.aborted && acc) {
         const trace: TurnTrace = {
           id: `${startedAt}`, question: query, startedAt, durationMs: Date.now() - startedAt,
-          chunks: chk, answer: acc, citations: cites, consumption: cons, stages,
+          chunks: chk, answer: acc, citations: cites, consumption: cons, remi: remiScore, steps: stepList, stages,
         };
         saveTrace(trace); setTraces(loadTraces());
       }
@@ -130,6 +146,24 @@ export default function AgenticPage() {
               </div>
             </div>
 
+            {/* Driver steps (ARAG agent mode) */}
+            {steps.length > 0 && (
+              <div className="card p-4">
+                <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-ink-400">Pipeline steps</div>
+                <ol className="space-y-1.5">
+                  {steps.map((s, i) => (
+                    <li key={s.id} className="flex items-center gap-2 text-sm">
+                      <span className="text-xs font-bold text-ink-300">{i + 1}</span>
+                      <span className="chip">{s.label}</span>
+                      {s.reason && <span className="truncate text-xs text-ink-500">{s.reason}</span>}
+                      {s.chunks != null && <span className="ml-auto text-[11px] text-ink-400">{s.chunks} chunks</span>}
+                      {s.durationMs != null && <span className="text-[11px] text-ink-400">{Math.round(s.durationMs)}ms</span>}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+
             {/* Answer */}
             <div className="card p-5">
               <div className="mb-2 flex items-center gap-2 text-brand-700"><Sparkles size={16} /><span className="text-sm font-bold">Answer</span>
@@ -154,7 +188,9 @@ export default function AgenticPage() {
 
           {/* Right: chunks + consumption */}
           <aside className="space-y-5">
+            <RemiGauge remi={remi} />
             <ConsumptionReadout c={consumption} running={running} />
+            <DriverPanel activeModules={activeModules} aragConfigured={!!config?.aragConfigured} />
             <div className="card overflow-hidden">
               <div className="border-b border-ink-100 px-4 py-3 text-sm font-semibold text-ink-800">Context ({chunks.length})</div>
               <div className="max-h-[28rem] space-y-2 overflow-y-auto p-3">
