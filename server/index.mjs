@@ -148,6 +148,28 @@ app.use('/api/agent', rawBody, async (req, res) => {
   }
 });
 
+// Binary file upload -> Nuclia /upload (creates a resource from a file).
+// The browser POSTs raw bytes with x-filename; we add auth + base64 filename.
+app.post('/api/upload', express.raw({ type: '*/*', limit: '300mb' }), async (req, res) => {
+  if (!KB_CONFIGURED) return res.status(503).json({ detail: 'Knowledge Box not configured on server.' });
+  const filename = String(req.headers['x-filename'] || 'upload');
+  try {
+    const upstream = await fetch(`${KB_URL}/upload`, {
+      method: 'POST',
+      headers: {
+        'X-NUCLIA-SERVICEACCOUNT': `Bearer ${WRITER_KEY}`,
+        'Content-Type': req.headers['content-type'] || 'application/octet-stream',
+        'X-FILENAME': Buffer.from(filename, 'utf8').toString('base64'),
+      },
+      body: req.body,
+    });
+    const text = await upstream.text();
+    res.status(upstream.status).type(upstream.headers.get('content-type') || 'application/json').send(text);
+  } catch (err) {
+    res.status(502).json({ detail: 'Upload failed', error: String(err) });
+  }
+});
+
 // Static SPA (production)
 const DIST = join(ROOT, 'dist');
 if (existsSync(DIST)) {

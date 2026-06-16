@@ -161,6 +161,66 @@ export async function* ask(
   }
 }
 
+// ---------------- Ingestion (Sprint 1) ----------------
+
+function classificationBody(labels: Classification[]) {
+  return labels.length ? { usermetadata: { classifications: labels } } : {};
+}
+
+export async function createLinkResource(input: { url: string; title?: string; labels?: Classification[] }): Promise<string> {
+  const body = {
+    title: input.title?.trim() || input.url,
+    icon: 'application/stf-link',
+    origin: { url: input.url },
+    links: { link: { uri: input.url } },
+    ...classificationBody(input.labels || []),
+  };
+  const r = await kb<{ uuid: string }>('resources', { method: 'POST', body: JSON.stringify(body) });
+  return r.uuid;
+}
+
+export async function createTextResource(input: { title: string; body: string; format?: 'PLAIN' | 'MARKDOWN'; labels?: Classification[] }): Promise<string> {
+  const body = {
+    title: input.title.trim() || 'Untitled note',
+    icon: 'text/plain',
+    texts: { text: { body: input.body, format: input.format || 'PLAIN' } },
+    ...classificationBody(input.labels || []),
+  };
+  const r = await kb<{ uuid: string }>('resources', { method: 'POST', body: JSON.stringify(body) });
+  return r.uuid;
+}
+
+export async function uploadFile(file: File, opts: { labels?: Classification[] } = {}): Promise<string> {
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-filename': encodeURIComponent(file.name) },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`upload -> ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = await res.json();
+  const uuid = data.uuid || data.resource;
+  // Apply labels (if any) via a follow-up PATCH; upload itself can't carry classifications.
+  if (uuid && opts.labels?.length) {
+    try { await classifyResource(uuid, opts.labels); } catch { /* non-fatal */ }
+  }
+  return uuid;
+}
+
+export async function classifyResource(id: string, labels: Classification[]): Promise<void> {
+  await kb(`resource/${id}`, { method: 'PATCH', body: JSON.stringify({ usermetadata: { classifications: labels } }) });
+}
+
+export async function deleteResource(id: string): Promise<void> {
+  await kb(`resource/${id}`, { method: 'DELETE' });
+}
+
+export async function createLabelset(id: string, title: string, opts: { color?: string; multiple?: boolean } = {}): Promise<void> {
+  await kb(`labelset/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ title, color: opts.color || '#3366ff', multiple: opts.multiple ?? true, kind: ['RESOURCES'] }),
+  });
+}
+
 export async function getResource(id: string): Promise<any> {
   return kb<any>(`resource/${id}`, { query: { show: ['basic', 'origin', 'values', 'extracted', 'extra'], extracted: ['text', 'metadata'] } });
 }

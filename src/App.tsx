@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import DashboardPage from './pages/DashboardPage';
+import IngestPage from './pages/IngestPage';
 import Placeholder from './pages/Placeholder';
 
 export default function App() {
@@ -8,7 +9,7 @@ export default function App() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/ingest" element={<Placeholder title="Add Content" sprint="Sprint 1" />} />
+        <Route path="/ingest" element={<IngestPage />} />
         <Route path="/search" element={<Placeholder title="Search" sprint="Sprint 3" />} />
         <Route path="/library" element={<Placeholder title="Library" sprint="Sprint 3" />} />
         <Route path="/assistant" element={<Placeholder title="Assistant" sprint="Sprint 4" />} />

@@ -51,7 +51,7 @@ docker build -t research-portal . && docker run -p 8787:8787 --env-file .env res
 ## Sprint status
 
 - [x] **S0** — Scaffold, proxy server, KB-aware dashboard, Fly deploy
-- [ ] S1 — Ingestion core
+- [x] **S1** — Ingestion core: file upload, paste-text, link ingestion, live status
 - [ ] S2 — Crawl, connectors, hygiene
 - [ ] S3 — Search & discovery
 - [ ] S4 — Assistant & resource viewer
