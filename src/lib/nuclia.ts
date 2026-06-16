@@ -152,6 +152,7 @@ export async function* ask(
   if (opts.context?.length) body.context = opts.context;
   if (opts.resourceId) body.resource_filters = [opts.resourceId];
 
+  const resourceMap: Record<string, { title: string; url?: string }> = {};
   for await (const obj of streamNdjson('/api/kb/ask', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -161,13 +162,23 @@ export async function* ask(
     const t = item.type;
     if (t === 'answer' && typeof item.text === 'string') {
       yield { kind: 'answer', text: item.text };
+    } else if (t === 'retrieval') {
+      for (const [rid, r] of Object.entries<any>(item.results?.resources || {})) {
+        resourceMap[rid] = { title: r.title || rid, url: r.origin?.url };
+      }
+      yield { kind: 'status' };
     } else if (t === 'citations') {
-      const cites: Citation[] = Object.entries(item.citations || {}).map(([key]) => ({
-        title: key.split('/').pop() || key,
-        resourceId: key.split('/')[0],
-      }));
+      // Citation keys look like "<rid>/<field_type>/<field>/<range>"; dedupe by resource.
+      const seen = new Set<string>();
+      const cites: Citation[] = [];
+      for (const key of Object.keys(item.citations || {})) {
+        const rid = key.split('/')[0];
+        if (seen.has(rid)) continue;
+        seen.add(rid);
+        cites.push({ resourceId: rid, title: resourceMap[rid]?.title || `Source ${cites.length + 1}`, url: resourceMap[rid]?.url });
+      }
       yield { kind: 'citations', citations: cites };
-    } else if (t === 'retrieval' || t === 'status') {
+    } else if (t === 'status') {
       yield { kind: 'status' };
     }
   }

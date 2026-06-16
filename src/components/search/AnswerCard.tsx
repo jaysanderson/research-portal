@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { ask, type Citation } from '../../lib/nuclia';
 import { renderMarkdown } from '../../lib/markdown';
@@ -51,7 +52,11 @@ export function AnswerCard({ query, filters }: { query: string; filters: string[
               <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-400">Sources</div>
               <div className="flex flex-wrap gap-1.5">
                 {citations.map((c, i) => (
-                  <span key={i} className="chip bg-white">{i + 1}. {c.title}</span>
+                  c.resourceId ? (
+                    <Link key={i} to={`/knowledge/${c.resourceId}`} className="chip bg-white hover:border-brand-300 hover:text-brand-700">{i + 1}. {c.title}</Link>
+                  ) : (
+                    <span key={i} className="chip bg-white">{i + 1}. {c.title}</span>
+                  )
                 ))}
               </div>
             </div>
