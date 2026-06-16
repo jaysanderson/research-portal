@@ -221,6 +221,27 @@ export async function createLabelset(id: string, title: string, opts: { color?: 
   });
 }
 
+export async function crawlSite(url: string, limit = 40): Promise<{ source: string; links: string[] }> {
+  const res = await fetch(`/api/crawl?url=${encodeURIComponent(url)}&limit=${limit}`);
+  if (!res.ok) throw new Error(`crawl -> ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return res.json();
+}
+
+/** Facet counts for a labelset, e.g. getFacets('vendor') -> { 'Progress Sitefinity': 20, ... } */
+export async function getFacets(labelset: string): Promise<Record<string, number>> {
+  const data = await kb<any>('catalog', { query: { faceted: `/classification.labels/${labelset}`, page_size: 0 } });
+  const facets = data.facets || data.fulltext?.facets || {};
+  const node = facets[`/classification.labels/${labelset}`];
+  const out: Record<string, number> = {};
+  const results = node?.facetresults || node?.facetResults || (Array.isArray(node) ? node : []);
+  for (const r of results) {
+    const tag: string = r.tag || r.facet || '';
+    const label = tag.split('/').pop() || tag;
+    out[label] = r.total ?? r.count ?? 0;
+  }
+  return out;
+}
+
 export async function getResource(id: string): Promise<any> {
   return kb<any>(`resource/${id}`, { query: { show: ['basic', 'origin', 'values', 'extracted', 'extra'], extracted: ['text', 'metadata'] } });
 }

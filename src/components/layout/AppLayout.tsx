@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { type ReactNode } from 'react';
 import {
   LayoutDashboard, Search, MessageSquare, Workflow, Library, Share2,
-  Upload, FlaskConical, BarChart3,
+  Upload, FlaskConical, BarChart3, Tags,
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { useConfig } from '../../lib/hooks';
@@ -12,6 +12,7 @@ export interface NavItem { to: string; label: string; icon: ReactNode; soon?: bo
 export const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
   { to: '/ingest', label: 'Add Content', icon: <Upload size={18} /> },
+  { to: '/taxonomy', label: 'Taxonomy', icon: <Tags size={18} /> },
   { to: '/search', label: 'Search', icon: <Search size={18} /> },
   { to: '/library', label: 'Library', icon: <Library size={18} /> },
   { to: '/assistant', label: 'Assistant', icon: <MessageSquare size={18} /> },

@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, Link2, FileText, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { createLinkResource, createTextResource, uploadFile, type Classification } from '../lib/nuclia';
+import { Upload, Link2, FileText, CheckCircle2, AlertCircle, Loader2, Globe, Search } from 'lucide-react';
+import { createLinkResource, createTextResource, uploadFile, crawlSite, type Classification } from '../lib/nuclia';
 import { RecentResources } from '../components/ingest/RecentResources';
 
-type Tab = 'upload' | 'link' | 'text';
+type Tab = 'upload' | 'link' | 'text' | 'crawl';
 
 interface UploadItem { id: string; name: string; state: 'uploading' | 'done' | 'error'; msg?: string }
 
@@ -28,12 +28,14 @@ export default function IngestPage() {
         <TabBtn active={tab === 'upload'} onClick={() => setTab('upload')} icon={<Upload size={16} />} label="Upload files" />
         <TabBtn active={tab === 'link'} onClick={() => setTab('link')} icon={<Link2 size={16} />} label="Add links" />
         <TabBtn active={tab === 'text'} onClick={() => setTab('text')} icon={<FileText size={16} />} label="Paste text" />
+        <TabBtn active={tab === 'crawl'} onClick={() => setTab('crawl')} icon={<Globe size={16} />} label="Crawl site" />
       </div>
 
       <div className="mt-4">
         {tab === 'upload' && <UploadPanel onChange={bump} />}
         {tab === 'link' && <LinkPanel onChange={bump} />}
         {tab === 'text' && <TextPanel onChange={bump} />}
+        {tab === 'crawl' && <CrawlPanel onChange={bump} />}
       </div>
 
       <div className="mt-8">
@@ -161,6 +163,82 @@ function LinkPanel({ onChange }: { onChange: () => void }) {
         </button>
         {result && <span className="text-sm text-ink-500">{result}</span>}
       </div>
+    </div>
+  );
+}
+
+function CrawlPanel({ onChange }: { onChange: () => void }) {
+  const [url, setUrl] = useState('');
+  const [vendor, setVendor] = useState('');
+  const [topics, setTopics] = useState('');
+  const [links, setLinks] = useState<string[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const discover = async () => {
+    if (!/^https?:\/\//.test(url.trim())) { setMsg('Enter a valid http(s) URL or sitemap.'); return; }
+    setBusy(true); setMsg(null); setLinks([]);
+    try {
+      const { links } = await crawlSite(url.trim(), 60);
+      setLinks(links);
+      setSelected(new Set(links));
+      setMsg(links.length ? `Found ${links.length} link(s). Review and ingest.` : 'No links found.');
+    } catch (err) { setMsg(`Crawl failed: ${String(err).slice(0, 120)}`); }
+    setBusy(false);
+  };
+
+  const toggle = (l: string) => setSelected((s) => { const n = new Set(s); n.has(l) ? n.delete(l) : n.add(l); return n; });
+
+  const ingest = async () => {
+    const list = links.filter((l) => selected.has(l));
+    if (!list.length) return;
+    setAdding(true); setMsg(null);
+    const labels = buildLabels(vendor, topics);
+    let ok = 0;
+    for (const u of list) { try { await createLinkResource({ url: u, labels }); ok++; } catch { /* */ } }
+    setAdding(false); setLinks([]); setSelected(new Set()); setMsg(`Ingested ${ok} of ${list.length} link(s). Indexing now…`); onChange();
+  };
+
+  return (
+    <div className="card p-5">
+      <label className="block">
+        <span className="text-sm font-semibold text-ink-700">Website or sitemap URL</span>
+        <div className="mt-1 flex gap-2">
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.example.com/sitemap.xml"
+            className="flex-1 rounded-lg border border-ink-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand-400" />
+          <button onClick={discover} disabled={busy} className="btn-primary whitespace-nowrap">
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Discover
+          </button>
+        </div>
+      </label>
+      <p className="mt-1 text-xs text-ink-400">Discovers same-domain pages (or sitemap entries). Review the list, then ingest the ones you want.</p>
+
+      {links.length > 0 && (
+        <>
+          <div className="mt-4 flex items-center justify-between text-xs text-ink-500">
+            <span>{selected.size} of {links.length} selected</span>
+            <div className="flex gap-2">
+              <button className="hover:text-brand-600" onClick={() => setSelected(new Set(links))}>All</button>
+              <button className="hover:text-brand-600" onClick={() => setSelected(new Set())}>None</button>
+            </div>
+          </div>
+          <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-ink-100 p-2">
+            {links.map((l) => (
+              <li key={l} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={selected.has(l)} onChange={() => toggle(l)} className="accent-brand-600" />
+                <span className="truncate text-ink-600">{l}</span>
+              </li>
+            ))}
+          </ul>
+          <LabelInputs vendor={vendor} setVendor={setVendor} topics={topics} setTopics={setTopics} />
+          <button onClick={ingest} disabled={adding || selected.size === 0} className="btn-primary mt-4">
+            {adding ? <Loader2 size={16} className="animate-spin" /> : <Globe size={16} />} Ingest {selected.size} link(s)
+          </button>
+        </>
+      )}
+      {msg && <p className="mt-3 text-sm text-ink-500">{msg}</p>}
     </div>
   );
 }

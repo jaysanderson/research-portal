@@ -170,6 +170,47 @@ app.post('/api/upload', express.raw({ type: '*/*', limit: '300mb' }), async (req
   }
 });
 
+// Crawl helper: discover URLs from a sitemap.xml or a page's same-origin links.
+// Returns candidate links for the user to review before ingesting.
+app.get('/api/crawl', async (req, res) => {
+  const target = String(req.query.url || '');
+  if (!/^https?:\/\//.test(target)) return res.status(400).json({ detail: 'Provide a valid http(s) url.' });
+  const cap = Math.min(Number(req.query.limit) || 40, 100);
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    const r = await fetch(target, { signal: ctrl.signal, headers: { 'User-Agent': 'ResearchPortalCrawler/1.0' } });
+    clearTimeout(timer);
+    const ct = r.headers.get('content-type') || '';
+    const text = await r.text();
+    const origin = new URL(target).origin;
+    let links = [];
+    if (ct.includes('xml') || target.endsWith('.xml') || /<urlset|<sitemapindex/.test(text)) {
+      links = [...text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);
+    } else {
+      const hrefs = [...text.matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)].map((m) => m[1]);
+      links = hrefs
+        .map((h) => { try { return new URL(h, target).href; } catch { return null; } })
+        .filter((h) => h && h.startsWith('http'))
+        .filter((h) => new URL(h).origin === origin);
+    }
+    // dedupe, drop assets, cap
+    const seen = new Set();
+    const out = [];
+    for (const l of links) {
+      const clean = l.split('#')[0];
+      if (seen.has(clean)) continue;
+      if (/\.(png|jpe?g|gif|svg|css|js|ico|woff2?|ttf|mp4|zip)(\?|$)/i.test(clean)) continue;
+      seen.add(clean);
+      out.push(clean);
+      if (out.length >= cap) break;
+    }
+    res.json({ source: target, count: out.length, links: out });
+  } catch (err) {
+    res.status(502).json({ detail: 'Crawl failed', error: String(err).slice(0, 200) });
+  }
+});
+
 // Static SPA (production)
 const DIST = join(ROOT, 'dist');
 if (existsSync(DIST)) {
