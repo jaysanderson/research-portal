@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Search as SearchIcon, ExternalLink, Loader2, FileText, Link2, File } from 'lucide-react';
+import { Search as SearchIcon, ExternalLink, Loader2, FileText, Link2, File, Library as LibIcon } from 'lucide-react';
 import { listCatalog, type ResourceCard } from '../lib/nuclia';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { StatusChip } from '../components/StatusChip';

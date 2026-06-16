@@ -1,5 +1,6 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import IngestPage from './pages/IngestPage';
 import TaxonomyPage from './pages/TaxonomyPage';
@@ -29,8 +30,10 @@ export default function App() {
 }
 
 function MainApp() {
+  const loc = useLocation();
   return (
     <AppLayout>
+      <ErrorBoundary resetKey={loc.pathname}>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/ingest" element={<IngestPage />} />
@@ -47,6 +50,7 @@ function MainApp() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Placeholder title="Not found" sprint="404" />} />
       </Routes>
+      </ErrorBoundary>
       <FloatingChat />
     </AppLayout>
   );
