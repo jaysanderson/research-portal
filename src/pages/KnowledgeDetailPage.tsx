@@ -5,6 +5,7 @@ import { getResource } from '../lib/nuclia';
 import { useChat } from '../lib/useChat';
 import { ChatThread } from '../components/chat/ChatThread';
 import { StatusChip } from '../components/StatusChip';
+import { SaveButton } from '../components/SaveButton';
 
 interface Detail {
   title: string;
@@ -67,6 +68,7 @@ export default function KnowledgeDetailPage() {
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {detail.labels.map((c, i) => <span key={i} className="chip">{c.label}</span>)}
+              <SaveButton item={() => ({ type: 'resource', title: detail.title, content: detail.summary || detail.text.slice(0, 500), url: detail.url, resourceId: id })} />
               {detail.url && (
                 <a href={detail.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-sm text-brand-600 hover:underline">
                   <ExternalLink size={14} /> {safeHost(detail.url)}

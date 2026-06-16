@@ -59,5 +59,5 @@ docker build -t research-portal . && docker run -p 8787:8787 --env-file .env res
 - [x] **S6** — ARAG agent client (multi-driver streamAgent), driver catalog, REMi gauge, pipeline steps (auto-activates with a connected agent)
 - [x] **S7** — D3 knowledge graph from corpus co-occurrence (vendor↔topic / ↔type) with node drill-down
 - [x] **S8** — Schema-enforced structured outputs (comparison matrix, briefing, interactive assessment) via answer_json_schema
-- [ ] S9 — Research workspace
+- [x] **S9** — Research workspace: save answers/resources/artifacts/notes, export Markdown report + BibTeX + CSV
 - [ ] S10 — Governance, analytics, embed

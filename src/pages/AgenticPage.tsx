@@ -15,6 +15,7 @@ import { useConfig } from '../lib/hooks';
 import { renderMarkdown } from '../lib/markdown';
 import { RemiGauge } from '../components/agentic/RemiGauge';
 import { DriverPanel } from '../components/agentic/DriverPanel';
+import { SaveButton } from '../components/SaveButton';
 
 const STAGES: { id: StageId; label: string; icon: React.ReactNode }[] = [
   { id: 'preprocess', label: 'Preprocess', icon: <Cpu size={15} /> },
@@ -167,7 +168,10 @@ export default function AgenticPage() {
             {/* Answer */}
             <div className="card p-5">
               <div className="mb-2 flex items-center gap-2 text-brand-700"><Sparkles size={16} /><span className="text-sm font-bold">Answer</span>
-                {running && <Loader2 size={14} className="animate-spin text-brand-400" />}</div>
+                {running && <Loader2 size={14} className="animate-spin text-brand-400" />}
+                {answer && !running && (
+                  <span className="ml-auto"><SaveButton item={() => ({ type: 'answer', title: question, question, content: answer, citations })} /></span>
+                )}</div>
               {answer ? (
                 <div className="prose-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(answer) }} />
               ) : (

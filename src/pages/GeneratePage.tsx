@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Table2, FileText, GraduationCap, Loader2, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
 import { askStructured, type Citation } from '../lib/nuclia';
 import { comparisonSchema, briefingSchema, quizSchema, type ComparisonOut, type BriefingOut, type QuizOut } from '../lib/schemas';
+import { SaveButton } from '../components/SaveButton';
 
 type Tab = 'matrix' | 'briefing' | 'quiz';
 
@@ -115,7 +116,10 @@ function BriefingTool() {
       {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
       {out && (
         <article className="mt-5">
-          <h2 className="text-xl font-bold text-ink-900">{out.title}</h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-xl font-bold text-ink-900">{out.title}</h2>
+            <SaveButton item={() => ({ type: 'artifact', title: out.title, content: `${out.executive_summary}\n\n${out.sections.map((s) => `### ${s.heading}\n${s.content}`).join('\n\n')}\n\n**Key takeaways**\n${out.key_takeaways.map((k) => `- ${k}`).join('\n')}`, citations: cites })} />
+          </div>
           <p className="mt-2 rounded-lg bg-brand-50/60 p-3 text-sm text-ink-700">{out.executive_summary}</p>
           {out.sections.map((s, i) => (
             <div key={i} className="mt-4"><h3 className="font-semibold text-ink-900">{s.heading}</h3><p className="mt-1 text-sm text-ink-600">{s.content}</p></div>
