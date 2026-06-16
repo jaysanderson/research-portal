@@ -8,8 +8,8 @@ export function Logo({ className = '' }: { className?: string }) {
         <circle cx="14" cy="14" r="1.8" className="fill-white" />
       </svg>
       <div className="leading-tight">
-        <div className="text-[15px] font-extrabold tracking-tight text-ink-900">Research Portal</div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-accent-600">Agentic RAG</div>
+        <div className="font-display text-[15px] font-semibold tracking-[-0.01em] text-ink-900">Research Portal</div>
+        <div className="t-overline text-ink-400">Agentic RAG</div>
       </div>
     </div>
   );

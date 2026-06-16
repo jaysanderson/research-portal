@@ -1,56 +1,60 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Upload, Search, MessageSquare, Workflow, Database, FileText, Layers, Hash } from 'lucide-react';
+import { Upload, Search, MessageSquare, Workflow, FileText, Layers, Hash, Tags, ArrowRight } from 'lucide-react';
 import { useConfig, useCounters } from '../lib/hooks';
 import { getLabelsets } from '../lib/nuclia';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/States';
 
 export default function DashboardPage() {
   const config = useConfig();
   const { counters } = useCounters();
-  const [vendorCount, setVendorCount] = useState<number | null>(null);
+  const [taxonomies, setTaxonomies] = useState<number | undefined>(undefined);
 
-  useEffect(() => {
-    getLabelsets().then((ls) => setVendorCount(Object.keys(ls).length)).catch(() => setVendorCount(null));
-  }, []);
+  useEffect(() => { getLabelsets().then((ls) => setTaxonomies(Object.keys(ls).length)).catch(() => setTaxonomies(undefined)); }, []);
 
   const empty = counters !== null && counters.resources === 0;
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Research Portal</h1>
-        <p className="mt-1 text-ink-500">
-          An agentic-RAG workspace over your Knowledge Box. Add content, then search, chat, and reason across it.
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
+      <PageHeader title="Research Portal" description="Search, chat with, and reason over your knowledge base." />
 
-      {!config?.kbConfigured && (
-        <div className="card mb-6 border-amber-300 bg-amber-50 p-5 text-amber-800">
-          The server has no Knowledge Box configured. Set <code className="font-mono">NUCLIA_KB_URL</code> and{' '}
-          <code className="font-mono">NUCLIA_API_KEY</code> and restart.
+      {config && !config.kbConfigured && (
+        <div className="card mb-6 border-accent-200 bg-accent-50 p-4 text-sm text-accent-700">
+          No Knowledge Box is configured on the server. Set <code className="font-mono">NUCLIA_KB_URL</code> and{' '}
+          <code className="font-mono">NUCLIA_API_KEY</code>, then restart.
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat icon={<FileText size={18} />} label="Resources" value={counters?.resources} />
-        <Stat icon={<Layers size={18} />} label="Paragraphs" value={counters?.paragraphs} />
-        <Stat icon={<Hash size={18} />} label="Sentences" value={counters?.sentences} />
-        <Stat icon={<Database size={18} />} label="Taxonomies" value={vendorCount ?? undefined} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat icon={<FileText size={16} strokeWidth={1.75} />} label="Resources" value={counters?.resources} />
+        <Stat icon={<Layers size={16} strokeWidth={1.75} />} label="Paragraphs" value={counters?.paragraphs} />
+        <Stat icon={<Hash size={16} strokeWidth={1.75} />} label="Sentences" value={counters?.sentences} />
+        <Stat icon={<Tags size={16} strokeWidth={1.75} />} label="Taxonomies" value={taxonomies} />
       </div>
 
       {empty ? (
-        <EmptyState />
+        <div className="card mt-6">
+          <EmptyState
+            icon={<Upload size={24} strokeWidth={1.75} />}
+            title="Your Knowledge Box is empty"
+            description="Add a resource to bring the portal to life — upload a file, paste text, or point it at a URL. It becomes searchable once indexed."
+            action={<Link to="/ingest" className="btn-primary"><Upload size={16} /> Add your first resource</Link>}
+          />
+        </div>
       ) : (
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <ActionCard to="/ingest" icon={<Upload size={20} />} title="Add content"
-            desc="Upload files, paste text, or crawl URLs straight into the Knowledge Box." />
-          <ActionCard to="/search" icon={<Search size={20} />} title="Search the corpus"
-            desc="Hybrid semantic + keyword search with AI answers and citations." />
-          <ActionCard to="/assistant" icon={<MessageSquare size={20} />} title="Ask the assistant"
-            desc="Streaming, cited answers grounded in your content." />
-          <ActionCard to="/agentic" icon={<Workflow size={20} />} title="Run an agentic query"
-            desc="Multi-step retrieval with a transparent pipeline, REMi scoring, and traces." />
+        <div className="mt-8">
+          <div className="mb-3 t-overline">Get started</div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <ActionCard to="/ingest" icon={<Upload size={18} strokeWidth={1.75} />} title="Add content"
+              desc="Upload files, paste text, or crawl URLs into the Knowledge Box." />
+            <ActionCard to="/search" icon={<Search size={18} strokeWidth={1.75} />} title="Search"
+              desc="Hybrid semantic and keyword search with cited AI answers." />
+            <ActionCard to="/assistant" icon={<MessageSquare size={18} strokeWidth={1.75} />} title="Ask the assistant"
+              desc="Streaming, grounded answers with source attribution." />
+            <ActionCard to="/agentic" icon={<Workflow size={18} strokeWidth={1.75} />} title="Run an agentic query"
+              desc="Multi-step retrieval with a transparent pipeline and traces." />
+          </div>
         </div>
       )}
     </div>
@@ -60,9 +64,9 @@ export default function DashboardPage() {
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value?: number }) {
   return (
     <div className="card p-4">
-      <div className="flex items-center gap-2 text-ink-400">{icon}<span className="text-xs font-semibold uppercase tracking-wide">{label}</span></div>
-      <div className="mt-2 text-2xl font-bold text-ink-900">
-        {value === undefined ? <span className="skeleton inline-block h-7 w-16" /> : value.toLocaleString()}
+      <div className="flex items-center gap-1.5 text-ink-400">{icon}<span className="t-overline">{label}</span></div>
+      <div className="mt-2 stat-value">
+        {value === undefined ? <span className="skeleton inline-block h-7 w-16 align-middle" /> : value.toLocaleString()}
       </div>
     </div>
   );
@@ -70,28 +74,15 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
 
 function ActionCard({ to, icon, title, desc }: { to: string; icon: React.ReactNode; title: string; desc: string }) {
   return (
-    <Link to={to} className="card group p-5 transition-shadow hover:shadow-md">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-50 text-brand-600 group-hover:bg-brand-100">{icon}</div>
-      <h3 className="mt-3 font-semibold text-ink-900">{title}</h3>
-      <p className="mt-1 text-sm text-ink-500">{desc}</p>
-    </Link>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="card mt-8 flex flex-col items-center justify-center px-6 py-16 text-center">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
-        <Upload size={26} />
+    <Link to={to} className="card card-hover group flex items-start gap-3.5 p-5 focus-visible:outline-none">
+      <span className="mt-0.5 text-ink-500 transition-colors group-hover:text-brand-700">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <h3 className="t-h3">{title}</h3>
+          <ArrowRight size={14} className="text-ink-300 transition-all group-hover:translate-x-0.5 group-hover:text-brand-600" />
+        </div>
+        <p className="mt-1 t-muted">{desc}</p>
       </div>
-      <h2 className="mt-4 text-xl font-bold text-ink-900">Your Knowledge Box is empty</h2>
-      <p className="mt-2 max-w-md text-ink-500">
-        Add your first resource to bring the portal to life. Upload files, paste text, or point it at a URL —
-        everything becomes searchable and chat-ready once indexed.
-      </p>
-      <Link to="/ingest" className="btn-primary mt-6">
-        <Upload size={16} /> Add your first resource
-      </Link>
-    </div>
+    </Link>
   );
 }
