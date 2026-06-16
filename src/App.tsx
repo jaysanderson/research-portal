@@ -6,6 +6,7 @@ import TaxonomyPage from './pages/TaxonomyPage';
 import SearchPage from './pages/SearchPage';
 import LibraryPage from './pages/LibraryPage';
 import AssistantPage from './pages/AssistantPage';
+import AgenticPage from './pages/AgenticPage';
 import KnowledgeDetailPage from './pages/KnowledgeDetailPage';
 import Placeholder from './pages/Placeholder';
 import { FloatingChat } from './components/chat/FloatingChat';
@@ -21,7 +22,7 @@ export default function App() {
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/knowledge/:id" element={<KnowledgeDetailPage />} />
         <Route path="/assistant" element={<AssistantPage />} />
-        <Route path="/agentic" element={<Placeholder title="Agentic Retrieval" sprint="Sprint 5" />} />
+        <Route path="/agentic" element={<AgenticPage />} />
         <Route path="/graph" element={<Placeholder title="Knowledge Graph" sprint="Sprint 7" />} />
         <Route path="/workspace" element={<Placeholder title="Research Workspace" sprint="Sprint 9" />} />
         <Route path="/analytics" element={<Placeholder title="Analytics" sprint="Sprint 10" />} />
