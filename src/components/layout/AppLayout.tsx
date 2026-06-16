@@ -52,6 +52,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <Menu size={20} />
           </button>
           <div className="md:hidden"><Logo /></div>
+          <button onClick={() => window.dispatchEvent(new Event('rp-open-palette'))}
+            className="hidden items-center gap-2 rounded-md border border-ink-200 bg-white px-3 py-1.5 text-xs text-ink-500 transition-colors hover:border-ink-300 hover:text-ink-700 sm:inline-flex"
+            aria-label="Open command palette">
+            <Search size={14} /> Search or ask
+            <kbd className="rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 font-sans text-[10px] text-ink-400">⌘K</kbd>
+          </button>
           <div className="ml-auto flex items-center gap-2">
             <KbStatus config={config} compact />
           </div>
@@ -111,7 +117,7 @@ function NavSections() {
                 {({ isActive }) => (
                   <>
                     <span className={`absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full ${isActive ? 'bg-brand-600' : 'bg-transparent'}`} />
-                    <span className={isActive ? 'text-brand-700' : 'text-ink-400 group-hover:text-ink-600'}>{item.icon}</span>
+                    <span className={`flex w-5 shrink-0 items-center justify-center ${isActive ? 'text-brand-700' : 'text-ink-400 group-hover:text-ink-600'}`}>{item.icon}</span>
                     <span>{item.label}</span>
                   </>
                 )}

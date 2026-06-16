@@ -73,6 +73,17 @@ export default function SearchPage() {
             </div>
           ) : (
             <>
+              {filters.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="t-overline mr-1">Filters</span>
+                  {filters.map((f) => (
+                    <button key={f} onClick={() => toggle(f)} className="chip-link" aria-label={`Remove filter ${f.split('/').pop()}`}>
+                      {f.split('/').pop()} <span className="text-ink-400">✕</span>
+                    </button>
+                  ))}
+                  <button onClick={() => setFilters([])} className="text-xs font-medium text-brand-700 hover:underline">Clear all</button>
+                </div>
+              )}
               <AnswerCard query={query} filters={filters} />
 
               {related.length > 0 && (

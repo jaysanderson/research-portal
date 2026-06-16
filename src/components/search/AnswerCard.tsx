@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Sparkles, Loader2 } from 'lucide-react';
-import { ask, type Citation } from '../../lib/nuclia';
+import { ask, isRefusal, type Citation } from '../../lib/nuclia';
 import { renderMarkdown } from '../../lib/markdown';
+import { Citations } from '../Citations';
 
 export function AnswerCard({ query, filters }: { query: string; filters: string[] }) {
   const [answer, setAnswer] = useState('');
@@ -34,33 +34,27 @@ export function AnswerCard({ query, filters }: { query: string; filters: string[
 
   if (!query.trim()) return null;
 
+  const clean = isRefusal(answer) ? '' : answer;
+
   return (
-    <div className="card border-brand-100 bg-gradient-to-br from-brand-50/60 to-white p-5">
+    <div className="card border-brand-100 bg-gradient-to-br from-brand-50/50 to-white p-5">
       <div className="mb-2 flex items-center gap-2 text-brand-700">
-        <Sparkles size={16} />
-        <span className="text-sm font-bold">AI Answer</span>
-        {streaming && <Loader2 size={14} className="animate-spin text-brand-400" />}
+        <Sparkles size={16} strokeWidth={2} />
+        <span className="t-h3 text-brand-800">AI Answer</span>
+        {streaming && <span className="ml-1 inline-flex items-center gap-1.5 text-xs font-normal text-ink-500"><Loader2 size={12} className="animate-spin" />{answer ? 'Writing…' : 'Reading sources…'}</span>}
       </div>
       {error ? (
-        <p className="text-sm text-rose-600">{error}</p>
+        <p className="text-sm text-data-clay">{error}</p>
       ) : (
         <>
-          <div className="prose-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(answer || (streaming ? '' : '')) }} />
-          {!answer && streaming && <div className="space-y-2"><div className="skeleton h-3 w-5/6" /><div className="skeleton h-3 w-4/6" /></div>}
-          {citations.length > 0 && (
-            <div className="mt-4 border-t border-brand-100 pt-3">
-              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-400">Sources</div>
-              <div className="flex flex-wrap gap-1.5">
-                {citations.map((c, i) => (
-                  c.resourceId ? (
-                    <Link key={i} to={`/knowledge/${c.resourceId}`} className="chip bg-white hover:border-brand-300 hover:text-brand-700">{i + 1}. {c.title}</Link>
-                  ) : (
-                    <span key={i} className="chip bg-white">{i + 1}. {c.title}</span>
-                  )
-                ))}
-              </div>
-            </div>
+          {clean ? (
+            <div className="prose-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(clean) }} />
+          ) : streaming ? (
+            <div className="space-y-2"><div className="skeleton h-3 w-5/6" /><div className="skeleton h-3 w-4/6" /><div className="skeleton h-3 w-3/5" /></div>
+          ) : (
+            <p className="text-sm text-ink-500">No grounded answer for this query — try rephrasing, or browse the ranked results below.</p>
           )}
+          <Citations citations={citations} />
         </>
       )}
     </div>

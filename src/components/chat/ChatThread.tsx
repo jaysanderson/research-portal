@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Send, Square, Sparkles, User } from 'lucide-react';
 import { renderMarkdown } from '../../lib/markdown';
+import { isRefusal } from '../../lib/nuclia';
+import { Citations } from '../Citations';
 import type { ChatMessage } from '../../lib/useChat';
 
 export function ChatThread({ messages, busy, onSend, onStop, placeholder, compact, examples }: {
@@ -70,15 +71,13 @@ function Bubble({ m, compact }: { m: ChatMessage; compact?: boolean }) {
           <p className={`whitespace-pre-wrap ${compact ? 'text-sm' : ''}`}>{m.content}</p>
         ) : (
           <>
-            <div className="prose-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />
-            {m.streaming && !m.content && <div className="flex gap-1 py-1"><Dot /><Dot d={150} /><Dot d={300} /></div>}
-            {m.citations && m.citations.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5 border-t border-ink-100 pt-2">
-                {m.citations.map((c, i) => c.resourceId
-                  ? <Link key={i} to={`/knowledge/${c.resourceId}`} className="chip-link text-[11px]">{i + 1}. {c.title}</Link>
-                  : <span key={i} className="chip text-[11px]">{i + 1}. {c.title}</span>)}
+            {!isRefusal(m.content) && <div className="prose-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />}
+            {m.streaming && !m.content && (
+              <div className="flex items-center gap-2 py-0.5 text-xs text-ink-500">
+                <span className="flex gap-1"><Dot /><Dot d={150} /><Dot d={300} /></span> Reading sources…
               </div>
             )}
+            {m.citations && <Citations citations={m.citations} />}
           </>
         )}
       </div>

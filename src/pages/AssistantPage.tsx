@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useChat } from '../lib/useChat';
 import { ChatThread } from '../components/chat/ChatThread';
 import { RotateCcw } from 'lucide-react';
@@ -11,6 +12,12 @@ const EXAMPLES = [
 
 export default function AssistantPage() {
   const { messages, busy, send, stop, reset } = useChat();
+  // Pick up a query handed off from the command palette.
+  useEffect(() => {
+    const q = sessionStorage.getItem('rp_prefill');
+    if (q) { sessionStorage.removeItem('rp_prefill'); send(q); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="mx-auto flex h-[calc(100vh-3.5rem)] max-w-3xl flex-col px-5 py-6 md:px-8">
       <div className="mb-4 flex items-end justify-between gap-4">

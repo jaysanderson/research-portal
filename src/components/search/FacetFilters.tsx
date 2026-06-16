@@ -52,14 +52,15 @@ function FacetGroup({ group, selected, onToggle }: {
           const on = selected.includes(filter);
           return (
             <li key={label}>
-              <button onClick={() => onToggle(filter)}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors ${
-                  on ? 'bg-brand-50 text-brand-700' : 'text-ink-600 hover:bg-ink-100'}`}>
-                <span className={`h-3.5 w-3.5 shrink-0 rounded border ${on ? 'border-brand-600 bg-brand-600' : 'border-ink-300'}`}>
+              <button onClick={() => onToggle(filter)} role="checkbox" aria-checked={on}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors focus-visible:outline-none ${
+                  on ? 'bg-brand-50 text-brand-800' : 'text-ink-700 hover:bg-ink-100'}`}>
+                {/* square = multi-select checkbox (not a radio) */}
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border ${on ? 'border-brand-600 bg-brand-600' : 'border-ink-300 bg-white'}`}>
                   {on && <svg viewBox="0 0 12 12" className="h-3 w-3 text-white"><path fill="currentColor" d="M4.5 8L2 5.5l.9-.9L4.5 6.2 9.1 1.6l.9.9z" /></svg>}
                 </span>
                 <span className="truncate">{label}</span>
-                <span className="ml-auto text-xs text-ink-400">{count}</span>
+                <span className="ml-auto text-xs tabular-nums text-ink-500">{count}</span>
               </button>
             </li>
           );

@@ -1,6 +1,22 @@
 // Knowledge Box client — all calls go through the server proxy (/api/kb/*).
 import { kb, streamNdjson } from './api';
 
+// Single shared generation prompt used by EVERY answer surface (Search, Assistant,
+// Agentic, structured). Nuclia's default RAG prompt emits "Not enough data to
+// answer this." as a guardrail even when relevant sources are retrieved; this
+// steers it to always synthesise from the available context. One pipeline, one voice.
+export const ANSWER_SYSTEM_PROMPT =
+  'You are a CMS/DXP research analyst. Always answer the user\'s question using the provided context. ' +
+  'Synthesize and compare across the sources even when the context is partial — surface what IS known and be specific, naming vendors. ' +
+  'Never reply that there is not enough data, and never refuse, when any relevant context is present. Write in clear, well-structured prose with Markdown.';
+
+// Belt-and-suspenders: if a refusal sentinel ever slips through, drop it so it
+// can never sit above retrieved results.
+const REFUSAL = /^\s*not enough data to answer this\.?\s*$/i;
+export function isRefusal(text: string): boolean {
+  return REFUSAL.test(text.trim());
+}
+
 export interface Counters {
   resources: number;
   paragraphs: number;
@@ -160,6 +176,7 @@ export async function* ask(
     features: ['keyword', 'semantic'],
     citations: true,
     show: ['basic', 'origin'],
+    prompt: { system: ANSWER_SYSTEM_PROMPT },
   };
   if (opts.filters?.length) body.filters = opts.filters;
   if (opts.context?.length) body.context = opts.context;

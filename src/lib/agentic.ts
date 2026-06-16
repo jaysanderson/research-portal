@@ -6,7 +6,7 @@
 // telemetry: retrieval (context chunks), streaming generation, token consumption,
 // and timings. Every signal below is real, not simulated.
 import { streamNdjson } from './api';
-import type { Citation } from './nuclia';
+import { ANSWER_SYSTEM_PROMPT, type Citation } from './nuclia';
 
 export type StageId = 'preprocess' | 'retrieve' | 'generate' | 'evaluate';
 
@@ -93,7 +93,7 @@ export async function* askAgentic(
     features: ['keyword', 'semantic'],
     citations: true,
     show: ['basic', 'origin'],
-    rephrase: true,
+    prompt: { system: ANSWER_SYSTEM_PROMPT },
   };
   if (opts.filters?.length) body.filters = opts.filters;
   if (opts.context?.length) body.context = opts.context;
