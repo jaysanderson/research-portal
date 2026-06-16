@@ -11,10 +11,24 @@ import KnowledgeDetailPage from './pages/KnowledgeDetailPage';
 import GraphPage from './pages/GraphPage';
 import GeneratePage from './pages/GeneratePage';
 import WorkspacePage from './pages/WorkspacePage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import SettingsPage from './pages/SettingsPage';
+import EmbedPage from './pages/EmbedPage';
 import Placeholder from './pages/Placeholder';
 import { FloatingChat } from './components/chat/FloatingChat';
 
 export default function App() {
+  return (
+    <Routes>
+      {/* Bare, chrome-less embeddable widget */}
+      <Route path="/embed" element={<EmbedPage />} />
+      {/* Main application */}
+      <Route path="/*" element={<MainApp />} />
+    </Routes>
+  );
+}
+
+function MainApp() {
   return (
     <AppLayout>
       <Routes>
@@ -29,7 +43,8 @@ export default function App() {
         <Route path="/generate" element={<GeneratePage />} />
         <Route path="/graph" element={<GraphPage />} />
         <Route path="/workspace" element={<WorkspacePage />} />
-        <Route path="/analytics" element={<Placeholder title="Analytics" sprint="Sprint 10" />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Placeholder title="Not found" sprint="404" />} />
       </Routes>
       <FloatingChat />

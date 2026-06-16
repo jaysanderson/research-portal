@@ -103,6 +103,19 @@ export function vendorFilter(labelset: string, label: string) {
   return `/classification.labels/${labelset}/${label}`;
 }
 
+export async function getStatusCounts(): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (let page = 0; page < 4; page++) {
+    const data = await kb<any>('catalog', { query: { page_number: page, page_size: 150, show: ['basic'] } });
+    const res = data.resources || {};
+    const keys = Object.keys(res);
+    if (!keys.length) break;
+    for (const k of keys) { const s = res[k]?.metadata?.status || 'UNKNOWN'; counts[s] = (counts[s] || 0) + 1; }
+    if (keys.length < 150) break;
+  }
+  return counts;
+}
+
 export async function find(query: string, opts: { filters?: string[]; pageSize?: number; mode?: RetrievalMode } = {}): Promise<FindResult[]> {
   const body: any = {
     query,
