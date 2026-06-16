@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# build
+dist/
+dist-ssr/
+*.local
+
+# env / secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
+# KB setup artifacts (contains manager service-account key)
+.kbsetup/
+
+# inspiration reference app (not part of this repo)
+InspirationApplication/
+
+# editor / os
+.DS_Store
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+
+# fly
+.fly/
