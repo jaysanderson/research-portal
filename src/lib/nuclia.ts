@@ -140,7 +140,7 @@ export interface AskChunk { kind: 'answer' | 'citations' | 'status' | 'metadata'
 /** Streaming /ask. Yields incremental answer text + final citations. */
 export async function* ask(
   query: string,
-  opts: { filters?: string[]; signal?: AbortSignal; context?: { author: string; text: string }[] } = {}
+  opts: { filters?: string[]; signal?: AbortSignal; context?: { author: string; text: string }[]; resourceId?: string } = {}
 ): AsyncGenerator<AskChunk> {
   const body: any = {
     query,
@@ -150,6 +150,7 @@ export async function* ask(
   };
   if (opts.filters?.length) body.filters = opts.filters;
   if (opts.context?.length) body.context = opts.context;
+  if (opts.resourceId) body.resource_filters = [opts.resourceId];
 
   for await (const obj of streamNdjson('/api/kb/ask', {
     method: 'POST',
