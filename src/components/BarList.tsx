@@ -1,4 +1,4 @@
-export function BarList({ data, color = '#1f47f0', max }: { data: [string, number][]; color?: string; max?: number }) {
+export function BarList({ data, color = '#1A6A4F', max }: { data: [string, number][]; color?: string; max?: number }) {
   const top = Math.max(max ?? 0, ...data.map((d) => d[1]), 1);
   return (
     <div className="space-y-1.5">

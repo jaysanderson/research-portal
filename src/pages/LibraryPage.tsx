@@ -4,6 +4,8 @@ import { Search as SearchIcon, ExternalLink, Loader2, FileText, Link2, File } fr
 import { listCatalog, type ResourceCard } from '../lib/nuclia';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { StatusChip } from '../components/StatusChip';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState, SkeletonGrid } from '../components/States';
 
 const PAGE = 24;
 
@@ -33,14 +35,13 @@ export default function LibraryPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-      <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Library</h1>
-      <p className="mt-1 text-ink-500">Browse every resource in the Knowledge Box. {total > 0 && `${total.toLocaleString()} total.`}</p>
+      <PageHeader title="Library" description={`Browse every resource in the Knowledge Box.${total > 0 ? ` ${total.toLocaleString()} total.` : ''}`} />
 
-      <form onSubmit={(e) => { e.preventDefault(); setQuery(input); }} className="mt-5 flex gap-2">
+      <form onSubmit={(e) => { e.preventDefault(); setQuery(input); }} className="flex gap-2">
         <div className="relative flex-1">
-          <SearchIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
-          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Filter by title or keyword…"
-            className="w-full rounded-xl border border-ink-200 bg-white py-2.5 pl-10 pr-4 text-sm outline-none focus:border-brand-400" />
+          <SearchIcon size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+          <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Filter library by title or keyword"
+            placeholder="Filter by title or keyword…" className="input py-2.5 pl-10" />
         </div>
         <button className="btn-outline">Filter</button>
       </form>
@@ -49,9 +50,10 @@ export default function LibraryPage() {
         <aside className="hidden lg:block"><FacetFilters selected={filters} onToggle={toggle} onClear={() => setFilters([])} /></aside>
         <div className="min-w-0">
           {loading && items.length === 0 ? (
-            <div className="grid gap-3 sm:grid-cols-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-28 rounded-xl" />)}</div>
+            <SkeletonGrid count={6} />
           ) : items.length === 0 ? (
-            <p className="py-12 text-center text-ink-400">No resources match.</p>
+            <EmptyState compact icon={<LibIcon size={22} strokeWidth={1.75} />} title="No resources match"
+              description="Try a different keyword or clear the filters." />
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-2">

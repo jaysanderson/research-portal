@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Tags, Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { getLabelsets, getFacets, createLabelset, type LabelsetMap } from '../lib/nuclia';
+import { PageHeader } from '../components/PageHeader';
 
 export default function TaxonomyPage() {
   const [labelsets, setLabelsets] = useState<LabelsetMap>({});
@@ -32,9 +33,7 @@ export default function TaxonomyPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-      <div className="flex items-center gap-2"><Tags className="text-brand-600" size={22} />
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Taxonomy</h1></div>
-      <p className="mt-1 text-ink-500">Classification labelsets applied to your resources. Counts reflect indexed content.</p>
+      <PageHeader title="Taxonomy" description="Classification labelsets applied to your resources. Counts reflect indexed content." />
 
       <div className="card mt-6 p-5">
         <h3 className="text-sm font-semibold text-ink-800">Create a labelset</h3>

@@ -13,6 +13,7 @@ import { streamAgent } from '../lib/aragAgent';
 import type { Citation } from '../lib/nuclia';
 import { useConfig } from '../lib/hooks';
 import { renderMarkdown } from '../lib/markdown';
+import { PageHeader } from '../components/PageHeader';
 import { RemiGauge } from '../components/agentic/RemiGauge';
 import { DriverPanel } from '../components/agentic/DriverPanel';
 import { SaveButton } from '../components/SaveButton';
@@ -97,12 +98,9 @@ export default function AgenticPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-      <div className="flex items-center gap-2"><Workflow className="text-brand-600" size={22} />
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Agentic Retrieval</h1></div>
-      <p className="mt-1 text-ink-500">
-        A transparent multi-step pipeline over the Knowledge Box — watch retrieval, generation, token cost and timings in real time.
-        {!config?.aragConfigured && <span className="ml-1 text-ink-400">(KB pipeline mode — configure an ARAG agent to enable multi-driver + REMi.)</span>}
-      </p>
+      <PageHeader title="Agentic retrieval"
+        description={`A transparent multi-step pipeline over the Knowledge Box — watch retrieval, generation, token cost and timings in real time.${!config?.aragConfigured ? ' KB-pipeline mode — connect an ARAG agent to enable multi-driver + REMi.' : ''}`} />
+
 
       <form onSubmit={(e) => { e.preventDefault(); run(input); }} className="mt-5 flex gap-2">
         <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask a complex, multi-source question…"

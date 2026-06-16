@@ -63,7 +63,7 @@ export default function KnowledgeDetailPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <article className="min-w-0">
             <div className="flex items-start justify-between gap-3">
-              <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">{detail.title}</h1>
+              <h1 className="t-display">{detail.title}</h1>
               <StatusChip status={detail.status} />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">

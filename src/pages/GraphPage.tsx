@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Share2, Loader2, X } from 'lucide-react';
 import { fetchGraph, type GraphData, type GraphNode } from '../lib/graph';
 import { listCatalog, type ResourceCard } from '../lib/nuclia';
+import { PageHeader } from '../components/PageHeader';
 
 const SECONDARIES = [
   { id: 'topic', label: 'Topics' },
@@ -36,18 +37,19 @@ export default function GraphPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-8">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2"><Share2 className="text-brand-600" size={22} />
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Knowledge Graph</h1></div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs font-semibold text-ink-400">Vendors ↔</span>
-          {SECONDARIES.map((s) => (
-            <button key={s.id} onClick={() => setSecondary(s.id)}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${secondary === s.id ? 'bg-ink-900 text-white' : 'bg-ink-100 text-ink-600 hover:bg-ink-200'}`}>{s.label}</button>
-          ))}
-        </div>
-      </div>
-      <p className="mt-1 text-ink-500">Relationship graph derived from real corpus classifications — node size = resource count, edge weight = co-occurrence.</p>
+      <PageHeader title="Knowledge graph"
+        description="Relationship graph derived from real corpus classifications — node size = resource count, edge weight = co-occurrence."
+        actions={
+          <div className="flex items-center gap-2">
+            <span className="t-overline mr-1">Vendors ↔</span>
+            <div className="inline-flex rounded-md border border-ink-200 bg-white p-0.5">
+              {SECONDARIES.map((s) => (
+                <button key={s.id} onClick={() => setSecondary(s.id)} aria-pressed={secondary === s.id}
+                  className={`rounded px-3 py-1 text-xs font-semibold transition-colors ${secondary === s.id ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}>{s.label}</button>
+              ))}
+            </div>
+          </div>
+        } />
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="card relative h-[600px] overflow-hidden">
@@ -59,8 +61,8 @@ export default function GraphPage() {
             <div className="flex h-full items-center justify-center text-ink-400">No graph data.</div>
           )}
           <div className="absolute bottom-3 left-3 flex gap-3 rounded-lg bg-white/90 px-3 py-1.5 text-xs shadow-sm">
-            <Legend color="#1f47f0" label="Vendor" />
-            <Legend color={secondary === 'topic' ? '#06b6d4' : '#f59e0b'} label={secondary === 'topic' ? 'Topic' : 'Type'} />
+            <Legend color="#1A6A4F" label="Vendor" />
+            <Legend color={secondary === 'topic' ? '#C8861A' : '#B5543F'} label={secondary === 'topic' ? 'Topic' : 'Type'} />
           </div>
         </div>
 

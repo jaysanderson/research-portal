@@ -4,6 +4,7 @@ import { Table2, FileText, GraduationCap, Loader2, Sparkles, CheckCircle2, XCirc
 import { askStructured, type Citation } from '../lib/nuclia';
 import { comparisonSchema, briefingSchema, quizSchema, type ComparisonOut, type BriefingOut, type QuizOut } from '../lib/schemas';
 import { SaveButton } from '../components/SaveButton';
+import { PageHeader } from '../components/PageHeader';
 
 type Tab = 'matrix' | 'briefing' | 'quiz';
 
@@ -11,11 +12,9 @@ export default function GeneratePage() {
   const [tab, setTab] = useState<Tab>('matrix');
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-      <div className="flex items-center gap-2"><Sparkles className="text-brand-600" size={22} />
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Generate</h1></div>
-      <p className="mt-1 text-ink-500">Schema-enforced research artifacts, generated and grounded in your Knowledge Box.</p>
+      <PageHeader title="Generate" description="Schema-enforced research artifacts, generated and grounded in your Knowledge Box." />
 
-      <div className="mt-6 flex gap-1 rounded-lg border border-ink-200 bg-white p-1">
+      <div className="flex gap-1 rounded-lg border border-ink-200 bg-white p-1">
         <TabBtn active={tab === 'matrix'} onClick={() => setTab('matrix')} icon={<Table2 size={16} />} label="Comparison matrix" />
         <TabBtn active={tab === 'briefing'} onClick={() => setTab('briefing')} icon={<FileText size={16} />} label="Briefing" />
         <TabBtn active={tab === 'quiz'} onClick={() => setTab('quiz')} icon={<GraduationCap size={16} />} label="Assessment" />

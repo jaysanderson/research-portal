@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { BarChart3, FileText, Layers, Hash, Database, MessageSquare, Coins, Clock } from 'lucide-react';
+import { FileText, Layers, Hash, Database, MessageSquare, Coins, Clock } from 'lucide-react';
 import { getCounters, getFacets, getStatusCounts, type Counters } from '../lib/nuclia';
 import { loadTraces } from '../lib/agentic';
 import { BarList } from '../components/BarList';
+import { PageHeader } from '../components/PageHeader';
 
 export default function AnalyticsPage() {
   const [counters, setCounters] = useState<Counters | null>(null);
@@ -27,11 +28,9 @@ export default function AnalyticsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
-      <div className="flex items-center gap-2"><BarChart3 className="text-brand-600" size={22} />
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Analytics</h1></div>
-      <p className="mt-1 text-ink-500">Live Knowledge Box health, content distribution, and agentic usage.</p>
+      <PageHeader title="Analytics" description="Live Knowledge Box health, content distribution, and agentic usage." />
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={<FileText size={18} />} label="Resources" value={counters?.resources} />
         <Stat icon={<Layers size={18} />} label="Paragraphs" value={counters?.paragraphs} />
         <Stat icon={<Hash size={18} />} label="Sentences" value={counters?.sentences} />
@@ -44,7 +43,7 @@ export default function AnalyticsPage() {
             <span className="font-bold text-emerald-600">{Math.round((processed / totalStatus) * 100)}%</span>
             <span className="text-ink-500">indexed</span>
           </div>
-          <BarList color="#10b981" data={Object.entries(status).sort((a, b) => b[1] - a[1])} />
+          <BarList color="#237D5E" data={Object.entries(status).sort((a, b) => b[1] - a[1])} />
         </Card>
         <Card title="Agentic usage (this device)">
           <div className="grid grid-cols-3 gap-3">
@@ -58,9 +57,9 @@ export default function AnalyticsPage() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card title="Resources by vendor"><BarList data={vendor} /></Card>
-        <Card title="Resources by type"><BarList color="#06b6d4" data={rtype} /></Card>
+        <Card title="Resources by type"><BarList color="#C8861A" data={rtype} /></Card>
       </div>
-      <div className="mt-6"><Card title="Top topics"><BarList color="#f59e0b" data={topic} /></Card></div>
+      <div className="mt-6"><Card title="Top topics"><BarList color="#B5543F" data={topic} /></Card></div>
     </div>
   );
 }

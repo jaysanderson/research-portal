@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Upload, Link2, FileText, CheckCircle2, AlertCircle, Loader2, Globe, Search } from 'lucide-react';
 import { createLinkResource, createTextResource, uploadFile, crawlSite, type Classification } from '../lib/nuclia';
 import { RecentResources } from '../components/ingest/RecentResources';
+import { PageHeader } from '../components/PageHeader';
 
 type Tab = 'upload' | 'link' | 'text' | 'crawl';
 
@@ -21,10 +22,9 @@ export default function IngestPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-      <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Add content</h1>
-      <p className="mt-1 text-ink-500">Upload files, paste text, or add links. Everything is indexed and searchable once processed.</p>
+      <PageHeader title="Add content" description="Upload files, paste text, or add links. Everything is indexed and searchable once processed." />
 
-      <div className="mt-6 flex gap-1 rounded-lg border border-ink-200 bg-white p-1">
+      <div className="flex gap-1 rounded-lg border border-ink-200 bg-white p-1">
         <TabBtn active={tab === 'upload'} onClick={() => setTab('upload')} icon={<Upload size={16} />} label="Upload files" />
         <TabBtn active={tab === 'link'} onClick={() => setTab('link')} icon={<Link2 size={16} />} label="Add links" />
         <TabBtn active={tab === 'text'} onClick={() => setTab('text')} icon={<FileText size={16} />} label="Paste text" />

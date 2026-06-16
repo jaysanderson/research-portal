@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ShieldCheck, Server, KeyRound, Users, Code2, Copy, Check } from 'lucide-react';
+import { Server, KeyRound, Users, Code2, Copy, Check } from 'lucide-react';
 import { useConfig } from '../lib/hooks';
+import { PageHeader } from '../components/PageHeader';
 
 export default function SettingsPage() {
   const config = useConfig();
@@ -14,11 +15,9 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-      <div className="flex items-center gap-2"><ShieldCheck className="text-brand-600" size={22} />
-        <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Governance & Settings</h1></div>
-      <p className="mt-1 text-ink-500">Security posture, access control, and embedding.</p>
+      <PageHeader title="Governance & settings" description="Security posture, access control, and embedding." />
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <Panel icon={<Server size={16} />} title="Knowledge Box">
           <Row label="Status" value={config?.kbConfigured ? 'Connected' : 'Not configured'} ok={config?.kbConfigured} />
           <Row label="Zone" value={config?.zone || '—'} />

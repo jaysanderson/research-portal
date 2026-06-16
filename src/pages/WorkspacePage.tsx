@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FlaskConical, Trash2, Plus, Download, FileDown, Table, Quote, StickyNote, MessageSquare, FileText, Library as LibIcon } from 'lucide-react';
+import { Trash2, Plus, Download, FileDown, Table, Quote, StickyNote, MessageSquare, FileText, Library as LibIcon } from 'lucide-react';
 import { loadWorkspace, addItem, removeItem, clearWorkspace, toMarkdown, toBibtex, toCsv, download, type WorkspaceItem } from '../lib/workspace';
 import { renderMarkdown } from '../lib/markdown';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/States';
 
 const ICON: Record<string, React.ReactNode> = {
   note: <StickyNote size={15} />, answer: <MessageSquare size={15} />, resource: <LibIcon size={15} />, artifact: <FileText size={15} />,
@@ -20,19 +22,15 @@ export default function WorkspacePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2"><FlaskConical className="text-brand-600" size={22} />
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink-900">Workspace</h1></div>
-        {items.length > 0 && (
-          <div className="ml-auto flex flex-wrap gap-2">
-            <button onClick={() => download('research-report.md', toMarkdown(items), 'text/markdown')} className="btn-outline text-sm"><FileDown size={15} /> Markdown</button>
-            <button onClick={() => download('citations.bib', toBibtex(items), 'text/plain')} className="btn-outline text-sm"><Quote size={15} /> BibTeX</button>
-            <button onClick={() => download('workspace.csv', toCsv(items), 'text/csv')} className="btn-outline text-sm"><Table size={15} /> CSV</button>
-            <button onClick={() => { if (confirm('Clear the workspace?')) { clearWorkspace(); } }} className="btn-ghost text-sm text-rose-600"><Trash2 size={15} /> Clear</button>
-          </div>
-        )}
-      </div>
-      <p className="mt-1 text-ink-500">Saved findings, answers, resources and notes — compile and export a cited report.</p>
+      <PageHeader title="Workspace" description="Saved findings, answers, resources and notes — compile and export a cited report."
+        actions={items.length > 0 ? (
+          <>
+            <button onClick={() => download('research-report.md', toMarkdown(items), 'text/markdown')} className="btn-outline btn-sm"><FileDown size={14} /> Markdown</button>
+            <button onClick={() => download('citations.bib', toBibtex(items), 'text/plain')} className="btn-outline btn-sm"><Quote size={14} /> BibTeX</button>
+            <button onClick={() => download('workspace.csv', toCsv(items), 'text/csv')} className="btn-outline btn-sm"><Table size={14} /> CSV</button>
+            <button onClick={() => { if (confirm('Clear the workspace?')) { clearWorkspace(); } }} className="btn-ghost btn-sm text-data-clay"><Trash2 size={14} /> Clear</button>
+          </>
+        ) : undefined} />
 
       <div className="card mt-6 p-4">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink-800"><Plus size={15} /> Add a note</div>
@@ -44,9 +42,9 @@ export default function WorkspacePage() {
       </div>
 
       {items.length === 0 ? (
-        <div className="card mt-6 py-16 text-center text-ink-400">
-          <Download size={26} className="mx-auto text-ink-300" />
-          <p className="mt-2">Nothing saved yet. Use “Save to workspace” on answers, resources, and generated artifacts.</p>
+        <div className="card mt-6">
+          <EmptyState icon={<Download size={24} strokeWidth={1.75} />} title="Nothing saved yet"
+            description="Use “Save to workspace” on answers, resources, and generated artifacts to collect them here." />
         </div>
       ) : (
         <div className="mt-6 space-y-3">

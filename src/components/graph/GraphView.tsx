@@ -5,7 +5,7 @@ import type { GraphData, GraphNode } from '../../lib/graph';
 interface SimNode extends GraphNode { x?: number; y?: number; fx?: number | null; fy?: number | null }
 interface SimEdge { source: SimNode; target: SimNode; weight: number }
 
-const COLORS: Record<string, string> = { vendor: '#1f47f0', topic: '#06b6d4', 'resource-type': '#f59e0b' };
+const COLORS: Record<string, string> = { vendor: '#1A6A4F', topic: '#C8861A', 'resource-type': '#B5543F' };
 
 export function GraphView({ data, onSelect, selected }: {
   data: GraphData;
