@@ -9,6 +9,7 @@ import AssistantPage from './pages/AssistantPage';
 import AgenticPage from './pages/AgenticPage';
 import KnowledgeDetailPage from './pages/KnowledgeDetailPage';
 import GraphPage from './pages/GraphPage';
+import GeneratePage from './pages/GeneratePage';
 import Placeholder from './pages/Placeholder';
 import { FloatingChat } from './components/chat/FloatingChat';
 
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/knowledge/:id" element={<KnowledgeDetailPage />} />
         <Route path="/assistant" element={<AssistantPage />} />
         <Route path="/agentic" element={<AgenticPage />} />
+        <Route path="/generate" element={<GeneratePage />} />
         <Route path="/graph" element={<GraphPage />} />
         <Route path="/workspace" element={<Placeholder title="Research Workspace" sprint="Sprint 9" />} />
         <Route path="/analytics" element={<Placeholder title="Analytics" sprint="Sprint 10" />} />
