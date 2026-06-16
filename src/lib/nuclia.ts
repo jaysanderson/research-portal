@@ -270,29 +270,26 @@ export async function askStructured<T = any>(
   schema: { name: string; description: string; parameters: object },
   opts: { filters?: string[]; signal?: AbortSignal } = {}
 ): Promise<{ object: T; citations: Citation[] }> {
-  const body: any = { query, features: ['keyword', 'semantic'], answer_json_schema: schema, citations: true, show: ['basic', 'origin'] };
+  // Nuclia rejects citations + answer_json_schema together, so we derive sources
+  // from the retrieval event (the resources the answer was grounded in).
+  const body: any = { query, features: ['keyword', 'semantic'], answer_json_schema: schema, show: ['basic', 'origin'] };
   if (opts.filters?.length) body.filters = opts.filters;
 
   let object: any = null;
-  const resourceMap: Record<string, { title: string; url?: string }> = {};
-  let citations: Citation[] = [];
+  const citations: Citation[] = [];
+  const seen = new Set<string>();
   for await (const obj of streamNdjson('/api/kb/ask', { method: 'POST', body: JSON.stringify(body), signal: opts.signal })) {
     const item: any = (obj as any).item || obj;
     if (item.type === 'answer_json' && item.object) object = item.object;
     else if (item.type === 'retrieval') {
-      for (const [rid, r] of Object.entries<any>(item.results?.resources || {})) resourceMap[rid] = { title: r.title || rid, url: r.origin?.url };
-    } else if (item.type === 'citations') {
-      const seen = new Set<string>();
-      citations = [];
-      for (const key of Object.keys(item.citations || {})) {
-        const rid = key.split('/')[0];
+      for (const [rid, r] of Object.entries<any>(item.results?.resources || {})) {
         if (seen.has(rid)) continue; seen.add(rid);
-        citations.push({ resourceId: rid, title: resourceMap[rid]?.title || `Source ${citations.length + 1}`, url: resourceMap[rid]?.url });
+        citations.push({ resourceId: rid, title: r.title || rid, url: r.origin?.url });
       }
     }
   }
   if (!object) throw new Error('No structured answer returned.');
-  return { object, citations };
+  return { object, citations: citations.slice(0, 12) };
 }
 
 export async function getResource(id: string): Promise<any> {
