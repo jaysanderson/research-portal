@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { Database, Check, ChevronsUpDown, Lock } from 'lucide-react';
+import { Database, Check, ChevronsUpDown, Lock, Plus } from 'lucide-react';
 import { useConfig, useCurrentKb } from '../lib/hooks';
-import { setSelectedKbId, getSelectedKbId } from '../lib/api';
+import { setSelectedKbId, getSelectedKbId, mergedKbs } from '../lib/api';
+import { AddKbModal } from './AddKbModal';
 
 export function KbSwitcher() {
   const config = useConfig();
   const current = useCurrentKb();
   const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -15,7 +17,7 @@ export function KbSwitcher() {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const kbs = config?.kbs || [];
+  const kbs = mergedKbs(config);
   const select = (id: string) => {
     setOpen(false);
     if (id === getSelectedKbId()) return;
@@ -65,8 +67,16 @@ export function KbSwitcher() {
             );
           })}
           {kbs.length === 0 && <div className="px-3 py-3 text-sm text-ink-500">No Knowledge Boxes configured.</div>}
+          <div className="mt-1 border-t border-ink-100 pt-1">
+            <button onClick={() => { setOpen(false); setAddOpen(true); }}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-brand-50">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-brand-50 text-brand-600"><Plus size={14} /></span>
+              Add Knowledge Box
+            </button>
+          </div>
         </div>
       )}
+      <AddKbModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );
 }

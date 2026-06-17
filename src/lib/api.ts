@@ -1,4 +1,6 @@
-// Thin wrappers around the server proxy. The browser never sees a Nuclia key.
+// Thin wrappers around the server proxy. Pre-configured (env) KB keys stay
+// server-side. User-added KBs are "bring your own key": stored in this browser
+// and sent per-request to the proxy (which only forwards to Progress/Nuclia hosts).
 
 export interface KbInfo {
   id: string;
@@ -7,16 +9,52 @@ export interface KbInfo {
   zone: string | null;
   connected: boolean;
   aragConfigured: boolean;
+  source: 'env' | 'local';
 }
 
 export interface PortalConfig {
   generativeModel: string | null;
-  kbs: KbInfo[];
+  kbs: KbInfo[]; // env-configured only
+}
+
+export interface LocalKb {
+  id: string;
+  name: string;
+  url: string;
+  key: string;
+  aragBase?: string;
+  aragAgent?: string;
+  aragKey?: string;
 }
 
 let _config: PortalConfig | null = null;
 
-// ---- Selected Knowledge Box (persisted) ----
+// ---- User-added KBs (localStorage) ----
+const LOCAL_KEY = 'rp_local_kbs';
+export function getLocalKbs(): LocalKb[] {
+  try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]'); } catch { return []; }
+}
+function persistLocal(list: LocalKb[]) {
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(list));
+  window.dispatchEvent(new Event('rp-kb-change'));
+}
+export function addLocalKb(kb: Omit<LocalKb, 'id'>): LocalKb {
+  const full: LocalKb = { ...kb, id: `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}` };
+  persistLocal([...getLocalKbs(), full]);
+  return full;
+}
+export function removeLocalKb(id: string) {
+  persistLocal(getLocalKbs().filter((k) => k.id !== id));
+  if (_selectedKbId === id) setSelectedKbId('');
+}
+function localToInfo(k: LocalKb): KbInfo {
+  let zone: string | null = null;
+  let kbId = k.id;
+  try { zone = new URL(k.url).host; kbId = k.url.split('/').pop() || k.id; } catch { /* */ }
+  return { id: k.id, name: k.name, kbId, zone, connected: true, aragConfigured: !!(k.aragBase && k.aragAgent && k.aragKey), source: 'local' };
+}
+
+// ---- Selected Knowledge Box ----
 const KB_KEY = 'rp_kb';
 let _selectedKbId: string = (typeof localStorage !== 'undefined' && localStorage.getItem(KB_KEY)) || '';
 
@@ -26,8 +64,23 @@ export function setSelectedKbId(id: string) {
   try { localStorage.setItem(KB_KEY, id); } catch { /* */ }
   window.dispatchEvent(new Event('rp-kb-change'));
 }
-/** Header that tells the proxy which KB to route to. */
+
+/** All KBs the UI knows about: env (from server) + local (from this browser). */
+export function mergedKbs(config: PortalConfig | null): KbInfo[] {
+  const env = (config?.kbs || []).map((k) => ({ ...k, source: 'env' as const }));
+  return [...env, ...getLocalKbs().map(localToInfo)];
+}
+
+/** Headers telling the proxy which KB to use. Local KBs send their own url+key. */
 export function kbHeaders(): Record<string, string> {
+  const local = getLocalKbs().find((k) => k.id === _selectedKbId);
+  if (local) {
+    const h: Record<string, string> = { 'x-kb-url': local.url, 'x-kb-key': local.key };
+    if (local.aragBase && local.aragAgent && local.aragKey) {
+      h['x-kb-arag-url'] = local.aragBase; h['x-kb-arag-agent'] = local.aragAgent; h['x-kb-arag-key'] = local.aragKey;
+    }
+    return h;
+  }
   return _selectedKbId ? { 'x-kb': _selectedKbId } : {};
 }
 
@@ -35,18 +88,29 @@ export async function getConfig(force = false): Promise<PortalConfig> {
   if (_config && !force) return _config;
   const res = await fetch('/api/config');
   _config = await res.json();
-  // If nothing selected yet (or selection no longer exists), default to first connected.
-  const ids = new Set((_config!.kbs || []).map((k) => k.id));
+  const ids = new Set(mergedKbs(_config).map((k) => k.id));
   if (!_selectedKbId || !ids.has(_selectedKbId)) {
-    const first = (_config!.kbs || []).find((k) => k.connected) || _config!.kbs?.[0];
+    const all = mergedKbs(_config);
+    const first = all.find((k) => k.connected) || all[0];
     if (first) _selectedKbId = first.id;
   }
   return _config!;
 }
 
 export function currentKb(config: PortalConfig | null): KbInfo | null {
-  if (!config?.kbs?.length) return null;
-  return config.kbs.find((k) => k.id === _selectedKbId) || config.kbs.find((k) => k.connected) || config.kbs[0];
+  const all = mergedKbs(config);
+  if (!all.length) return null;
+  return all.find((k) => k.id === _selectedKbId) || all.find((k) => k.connected) || all[0];
+}
+
+/** Probe an ad-hoc KB's reachability before saving it. */
+export async function probeKb(url: string, key: string): Promise<{ ok: boolean; resources?: number; error?: string }> {
+  try {
+    const res = await fetch('/api/kb/counters', { headers: { 'x-kb-url': url, 'x-kb-key': key } });
+    if (!res.ok) return { ok: false, error: `${res.status}: ${(await res.text()).slice(0, 160)}` };
+    const d = await res.json();
+    return { ok: true, resources: d.resources };
+  } catch (e) { return { ok: false, error: String(e).slice(0, 160) }; }
 }
 
 /** KB JSON request through the proxy. */
@@ -76,11 +140,8 @@ export async function kb<T = unknown>(
   return (ct.includes('application/json') ? res.json() : res.text()) as Promise<T>;
 }
 
-/** Streaming NDJSON request (used by /ask and /agent). Yields parsed objects. */
-export async function* streamNdjson(
-  url: string,
-  init: RequestInit
-): AsyncGenerator<Record<string, unknown>> {
+/** Streaming NDJSON request (used by /ask and /agent). */
+export async function* streamNdjson(url: string, init: RequestInit): AsyncGenerator<Record<string, unknown>> {
   const res = await fetch(url, {
     ...init,
     headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...kbHeaders(), ...(init.headers || {}) },
@@ -102,7 +163,7 @@ export async function* streamNdjson(
       buffer = buffer.slice(nl + 1);
       if (!line) continue;
       if (line.startsWith('data:')) line = line.slice(5).trim();
-      try { yield JSON.parse(line); } catch { /* skip malformed */ }
+      try { yield JSON.parse(line); } catch { /* skip */ }
     }
   }
   const tail = buffer.trim();

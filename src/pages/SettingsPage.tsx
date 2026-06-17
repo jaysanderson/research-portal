@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import { Database, KeyRound, Users, Code2, Copy, Check } from 'lucide-react';
+import { Database, KeyRound, Users, Code2, Copy, Check, Plus, Trash2 } from 'lucide-react';
 import { useConfig } from '../lib/hooks';
+import { mergedKbs, removeLocalKb } from '../lib/api';
 import { PageHeader } from '../components/PageHeader';
+import { AddKbModal } from '../components/AddKbModal';
 
 export default function SettingsPage() {
   const config = useConfig();
   const [copied, setCopied] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const kbs = mergedKbs(config);
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const snippet = `<iframe
   src="${origin}/embed"
@@ -17,30 +21,37 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
       <PageHeader title="Governance & settings" description="Security posture, access control, and embedding." />
 
-      <Panel icon={<Database size={16} />} title={`Knowledge Boxes (${config?.kbs?.length ?? 0})`}>
+      <Panel icon={<Database size={16} />} title={`Knowledge Boxes (${kbs.length})`}>
         {!config ? (
           <div className="skeleton h-12 w-full" />
-        ) : config.kbs.length === 0 ? (
-          <p className="text-sm text-ink-500">None configured on the server.</p>
+        ) : kbs.length === 0 ? (
+          <p className="text-sm text-ink-500">None configured.</p>
         ) : (
           <div className="divide-y divide-ink-100">
-            {config.kbs.map((kb) => (
+            {kbs.map((kb) => (
               <div key={kb.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
                 <span className={`h-2 w-2 rounded-full ${kb.connected ? 'bg-brand-500' : 'bg-accent-400'}`} />
                 <span className="font-medium text-ink-900">{kb.name}</span>
                 <span className="chip">{kb.zone || kb.id}</span>
+                <span className={`chip ${kb.source === 'local' ? 'bg-brand-50 text-brand-700' : ''}`}>{kb.source === 'local' ? 'Added by you' : 'Built-in'}</span>
                 <span className="ml-auto flex items-center gap-2 text-xs">
-                  <span className={kb.connected ? 'font-medium text-brand-700' : 'text-accent-600'}>{kb.connected ? 'Connected' : 'Not connected'}</span>
                   <span className={kb.aragConfigured ? 'rounded bg-accent-50 px-1.5 py-0.5 font-semibold text-accent-700' : 'text-ink-400'}>
                     {kb.aragConfigured ? 'Agent ready' : 'No agent'}
                   </span>
+                  {kb.source === 'local' && (
+                    <button onClick={() => { if (confirm(`Remove “${kb.name}”?`)) removeLocalKb(kb.id); }} aria-label="Remove" className="text-ink-400 hover:text-data-clay"><Trash2 size={14} /></button>
+                  )}
                 </span>
               </div>
             ))}
           </div>
         )}
-        <p className="mt-2 text-xs text-ink-400">Switch the active box from the sidebar. A box is disabled until the server can reach it. Add more by setting <code className="font-mono">NUCLIA_KB2_*</code> secrets.</p>
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-xs text-ink-400">Built-in boxes are server-configured. Add your own with just an endpoint + API key — stored in this browser.</p>
+          <button onClick={() => setAddOpen(true)} className="btn-outline btn-sm"><Plus size={14} /> Add KB</button>
+        </div>
       </Panel>
+      <AddKbModal open={addOpen} onClose={() => setAddOpen(false)} />
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Panel icon={<KeyRound size={16} />} title="Credential security">

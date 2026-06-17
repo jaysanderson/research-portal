@@ -65,9 +65,35 @@ const KBS = [
   }),
 ].filter(Boolean);
 
+// User-added "bring your own key" boxes arrive as request headers. Restrict the
+// proxy to Progress/Nuclia hosts so it can't be used as an open SSRF relay.
+const ALLOWED_HOST = [/\.rag\.progress\.cloud$/i, /\.dp\.progress\.cloud$/i, /\.nuclia\.cloud$/i, /(^|\.)progress\.cloud$/i];
+function isAllowedHost(u) {
+  try { return ALLOWED_HOST.some((re) => re.test(new URL(u).hostname)); } catch { return false; }
+}
+function adhocKb(req) {
+  const url = req.headers['x-kb-url'];
+  if (!url) return null;
+  if (!isAllowedHost(url)) return { __forbidden: true };
+  const key = req.headers['x-kb-key'] || '';
+  const ab = req.headers['x-kb-arag-url'];
+  const aid = req.headers['x-kb-arag-agent'];
+  const akey = req.headers['x-kb-arag-key'];
+  return {
+    id: 'custom', name: 'Custom KB', base: trimUrl(url), readerKey: key, writerKey: key,
+    arag: ab && aid && akey && isAllowedHost(ab) ? { base: trimUrl(ab), agentId: aid, apiKey: akey } : null,
+  };
+}
 const getKb = (req) => {
+  const ad = adhocKb(req);
+  if (ad) return ad; // includes the __forbidden sentinel
   const id = req.headers['x-kb'] || req.query.kb;
   return KBS.find((k) => k.id === id) || KBS[0] || null;
+};
+const kbError = (res, kb) => {
+  if (kb?.__forbidden) { res.status(403).json({ detail: 'Knowledge Box host not allowed.' }); return true; }
+  if (!kb) { res.status(503).json({ detail: 'No Knowledge Box configured on server.' }); return true; }
+  return false;
 };
 
 // ---- Live connectivity (so the UI can disable unreachable boxes) ----
@@ -162,7 +188,7 @@ function rawBody(req, _res, next) {
 // KB proxy: /api/kb/<subpath> -> {kb.base}/<subpath>
 app.use('/api/kb', rawBody, async (req, res) => {
   const kb = getKb(req);
-  if (!kb) return res.status(503).json({ detail: 'No Knowledge Box configured on server.' });
+  if (kbError(res, kb)) return;
   const subpath = req.path.replace(/^\/+/, '');
   const target = `${kb.base}/${subpath}${req._parsedUrl?.search || ''}`;
   try {
@@ -175,6 +201,7 @@ app.use('/api/kb', rawBody, async (req, res) => {
 // Agent proxy: /api/agent/session/<id> -> {kb.arag.base}/agent/{agentId}/session/{id}
 app.use('/api/agent', rawBody, async (req, res) => {
   const kb = getKb(req);
+  if (kb?.__forbidden) return res.status(403).json({ detail: 'Knowledge Box host not allowed.' });
   if (!kb || !kb.arag) return res.status(503).json({ detail: 'ARAG agent not configured for this Knowledge Box.' });
   const subpath = req.path.replace(/^\/+/, '');
   const target = `${kb.arag.base}/agent/${kb.arag.agentId}/${subpath}${req._parsedUrl?.search || ''}`;
@@ -188,7 +215,7 @@ app.use('/api/agent', rawBody, async (req, res) => {
 // Binary file upload -> {kb.base}/upload
 app.post('/api/upload', express.raw({ type: '*/*', limit: '300mb' }), async (req, res) => {
   const kb = getKb(req);
-  if (!kb) return res.status(503).json({ detail: 'No Knowledge Box configured on server.' });
+  if (kbError(res, kb)) return;
   const filename = String(req.headers['x-filename'] || 'upload');
   try {
     const upstream = await fetch(`${kb.base}/upload`, {
@@ -267,7 +294,7 @@ async function kbCatalogFacet(kb, facetKey, filters) {
 
 app.get('/api/graph', async (req, res) => {
   const kb = getKb(req);
-  if (!kb) return res.status(503).json({ detail: 'No Knowledge Box configured on server.' });
+  if (kbError(res, kb)) return;
   const primary = String(req.query.primary || 'vendor');
   const secondary = String(req.query.secondary || 'topic');
   try {
