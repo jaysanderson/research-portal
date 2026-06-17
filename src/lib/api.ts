@@ -54,14 +54,32 @@ export function removeLocalKb(id: string) {
 export function headersForKb(kb: { id: string } | LocalKb): Record<string, string> {
   const local = getLocalKbs().find((k) => k.id === kb.id);
   if (local) {
-    const h: Record<string, string> = { 'x-kb-url': local.url, 'x-kb-key': local.key };
-    if (local.aragBase && local.aragAgent && local.aragKey) {
-      h['x-kb-arag-url'] = local.aragBase; h['x-kb-arag-agent'] = local.aragAgent; h['x-kb-arag-key'] = local.aragKey;
-    }
-    return h;
+    return { 'x-kb-url': local.url, 'x-kb-key': local.key, ...agentHeaders({ aragBase: local.aragBase || '', aragAgent: local.aragAgent || '', aragKey: local.aragKey || '' }) };
   }
-  return { 'x-kb': kb.id };
+  return { 'x-kb': kb.id, ...agentHeaders(getAgentOverride(kb.id)) };
 }
+// ---- Retrieval Agent overrides: attach/override an agent on any KB (esp. built-in) ----
+export interface AgentCfg { aragBase: string; aragAgent: string; aragKey: string }
+const AGENT_KEY = 'rp_agent_overrides';
+function getAgentOverrides(): Record<string, AgentCfg> {
+  try { return JSON.parse(localStorage.getItem(AGENT_KEY) || '{}'); } catch { return {}; }
+}
+export function getAgentOverride(kbId: string): AgentCfg | undefined { return getAgentOverrides()[kbId]; }
+export function setAgentOverride(kbId: string, cfg: AgentCfg) {
+  const all = getAgentOverrides(); all[kbId] = cfg;
+  localStorage.setItem(AGENT_KEY, JSON.stringify(all));
+  window.dispatchEvent(new Event('rp-kb-change'));
+}
+export function removeAgentOverride(kbId: string) {
+  const all = getAgentOverrides(); delete all[kbId];
+  localStorage.setItem(AGENT_KEY, JSON.stringify(all));
+  window.dispatchEvent(new Event('rp-kb-change'));
+}
+function agentHeaders(cfg?: AgentCfg): Record<string, string> {
+  if (!cfg?.aragBase || !cfg.aragAgent || !cfg.aragKey) return {};
+  return { 'x-kb-arag-url': cfg.aragBase, 'x-kb-arag-agent': cfg.aragAgent, 'x-kb-arag-key': cfg.aragKey };
+}
+
 function localToInfo(k: LocalKb): KbInfo {
   let zone: string | null = null;
   let kbId = k.id;
@@ -82,7 +100,7 @@ export function setSelectedKbId(id: string) {
 
 /** All KBs the UI knows about: env (from server) + local (from this browser). */
 export function mergedKbs(config: PortalConfig | null): KbInfo[] {
-  const env = (config?.kbs || []).map((k) => ({ ...k, source: 'env' as const }));
+  const env = (config?.kbs || []).map((k) => ({ ...k, source: 'env' as const, aragConfigured: k.aragConfigured || !!getAgentOverride(k.id) }));
   return [...env, ...getLocalKbs().map(localToInfo)];
 }
 
@@ -90,13 +108,11 @@ export function mergedKbs(config: PortalConfig | null): KbInfo[] {
 export function kbHeaders(): Record<string, string> {
   const local = getLocalKbs().find((k) => k.id === _selectedKbId);
   if (local) {
-    const h: Record<string, string> = { 'x-kb-url': local.url, 'x-kb-key': local.key };
-    if (local.aragBase && local.aragAgent && local.aragKey) {
-      h['x-kb-arag-url'] = local.aragBase; h['x-kb-arag-agent'] = local.aragAgent; h['x-kb-arag-key'] = local.aragKey;
-    }
-    return h;
+    return { 'x-kb-url': local.url, 'x-kb-key': local.key, ...agentHeaders({ aragBase: local.aragBase || '', aragAgent: local.aragAgent || '', aragKey: local.aragKey || '' }) };
   }
-  return _selectedKbId ? { 'x-kb': _selectedKbId } : {};
+  if (!_selectedKbId) return {};
+  // Built-in KB: include a client agent override if one was attached in the UI.
+  return { 'x-kb': _selectedKbId, ...agentHeaders(getAgentOverride(_selectedKbId)) };
 }
 
 export async function getConfig(force = false): Promise<PortalConfig> {

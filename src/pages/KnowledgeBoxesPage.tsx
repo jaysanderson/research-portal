@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
+import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck, Workflow } from 'lucide-react';
 import { useConfig, useCurrentKb } from '../lib/hooks';
 import {
   mergedKbs, getLocalKbs, removeLocalKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
@@ -7,6 +7,7 @@ import {
 } from '../lib/api';
 import { PageHeader } from '../components/PageHeader';
 import { AddKbModal } from '../components/AddKbModal';
+import { AgentModal } from '../components/AgentModal';
 
 export default function KnowledgeBoxesPage() {
   const config = useConfig();
@@ -14,6 +15,7 @@ export default function KnowledgeBoxesPage() {
   const [, bump] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<LocalKb | null>(null);
+  const [agentKb, setAgentKb] = useState<KbInfo | null>(null);
 
   useEffect(() => { const h = () => bump((x) => x + 1); window.addEventListener('rp-kb-change', h); return () => window.removeEventListener('rp-kb-change', h); }, []);
 
@@ -41,6 +43,7 @@ export default function KnowledgeBoxesPage() {
             <KbRow key={kb.id} kb={kb} isCurrent={kb.id === current?.id}
               onSetActive={() => { setSelectedKbId(kb.id); window.location.assign('/'); }}
               onEdit={() => openEdit(kb.id)}
+              onAgent={() => setAgentKb(kb)}
               onRemove={() => { if (confirm(`Remove “${kb.name}”?`)) removeLocalKb(kb.id); }} />
           ))}
         </div>
@@ -52,12 +55,13 @@ export default function KnowledgeBoxesPage() {
       </p>
 
       <AddKbModal open={addOpen} editing={editing} onClose={() => setAddOpen(false)} />
+      <AgentModal open={!!agentKb} kb={agentKb} onClose={() => setAgentKb(null)} />
     </div>
   );
 }
 
-function KbRow({ kb, isCurrent, onSetActive, onEdit, onRemove }: {
-  kb: KbInfo; isCurrent: boolean; onSetActive: () => void; onEdit: () => void; onRemove: () => void;
+function KbRow({ kb, isCurrent, onSetActive, onEdit, onAgent, onRemove }: {
+  kb: KbInfo; isCurrent: boolean; onSetActive: () => void; onEdit: () => void; onAgent: () => void; onRemove: () => void;
 }) {
   const [testing, setTesting] = useState(false);
   const [res, setRes] = useState<{ kb?: { ok: boolean; resources?: number; error?: string }; agent?: { ok: boolean; error?: string } } | null>(null);
@@ -94,6 +98,7 @@ function KbRow({ kb, isCurrent, onSetActive, onEdit, onRemove }: {
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <button onClick={runTest} disabled={testing} className="btn-outline btn-sm">{testing ? <Loader2 size={13} className="animate-spin" /> : <FlaskConical size={13} />} Test</button>
+          <button onClick={onAgent} className="btn-outline btn-sm"><Workflow size={13} /> {kb.aragConfigured ? 'Edit agent' : 'Add agent'}</button>
           {!isCurrent && <button onClick={onSetActive} className="btn-outline btn-sm"><Check size={13} /> Set active</button>}
           {kb.source === 'local' && <button onClick={onEdit} className="btn-ghost btn-sm"><Pencil size={13} /> Edit</button>}
           {kb.source === 'local' && <button onClick={onRemove} className="btn-ghost btn-sm text-data-clay"><Trash2 size={13} /></button>}

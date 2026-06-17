@@ -220,11 +220,16 @@ app.use('/api/kb', rawBody, async (req, res) => {
 app.use('/api/agent', rawBody, async (req, res) => {
   const kb = getKb(req);
   if (kb?.__forbidden) return res.status(403).json({ detail: 'Knowledge Box host not allowed.' });
-  if (!kb || !kb.arag) return res.status(503).json({ detail: 'ARAG agent not configured for this Knowledge Box.' });
+  // A client-supplied agent (x-kb-arag-*) takes precedence — this lets the UI
+  // attach/override a Retrieval Agent on ANY box. Otherwise use the KB's own agent.
+  const ab = req.headers['x-kb-arag-url'], aid = req.headers['x-kb-arag-agent'], akey = req.headers['x-kb-arag-key'];
+  if (ab && !isAllowedHost(ab)) return res.status(403).json({ detail: 'Agent host not allowed.' });
+  const agent = ab && aid && akey ? { base: trimUrl(ab), agentId: aid, apiKey: akey } : (kb && kb.arag);
+  if (!agent) return res.status(503).json({ detail: 'No Retrieval Agent configured for this Knowledge Box.' });
   const subpath = req.path.replace(/^\/+/, '');
-  const target = `${kb.arag.base}/agent/${kb.arag.agentId}/${subpath}${req._parsedUrl?.search || ''}`;
+  const target = `${agent.base}/agent/${agent.agentId}/${subpath}${req._parsedUrl?.search || ''}`;
   try {
-    await proxy(target, kb.arag.apiKey, req, res);
+    await proxy(target, agent.apiKey, req, res);
   } catch (err) {
     if (!res.headersSent) res.status(502).json({ detail: 'Upstream agent request failed', error: String(err) });
   }
