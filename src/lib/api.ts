@@ -98,10 +98,37 @@ export function setSelectedKbId(id: string) {
   window.dispatchEvent(new Event('rp-kb-change'));
 }
 
-/** All KBs the UI knows about: env (from server) + local (from this browser). */
-export function mergedKbs(config: PortalConfig | null): KbInfo[] {
+// ---- Hidden boxes: built-in (server-configured) boxes can't be deleted from the
+// browser, so "remove" hides them here; restorable. Local boxes are deleted outright.
+const HIDDEN_KEY = 'rp_hidden_kbs';
+export function getHiddenKbIds(): string[] {
+  try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch { return []; }
+}
+export function hideKb(id: string) {
+  const set = new Set(getHiddenKbIds()); set.add(id);
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set]));
+  if (_selectedKbId === id) setSelectedKbId(''); else window.dispatchEvent(new Event('rp-kb-change'));
+}
+export function unhideKb(id: string) {
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify(getHiddenKbIds().filter((x) => x !== id)));
+  window.dispatchEvent(new Event('rp-kb-change'));
+}
+
+function allKbs(config: PortalConfig | null): KbInfo[] {
   const env = (config?.kbs || []).map((k) => ({ ...k, source: 'env' as const, aragConfigured: k.aragConfigured || !!getAgentOverride(k.id) }));
   return [...env, ...getLocalKbs().map(localToInfo)];
+}
+
+/** Visible KBs: env (from server) + local (this browser), minus hidden. */
+export function mergedKbs(config: PortalConfig | null): KbInfo[] {
+  const hidden = new Set(getHiddenKbIds());
+  return allKbs(config).filter((k) => !hidden.has(k.id));
+}
+
+/** Boxes the user hid — surfaced so they can be restored. */
+export function hiddenKbs(config: PortalConfig | null): KbInfo[] {
+  const hidden = new Set(getHiddenKbIds());
+  return allKbs(config).filter((k) => hidden.has(k.id));
 }
 
 /** Headers telling the proxy which KB to use. Local KBs send their own url+key. */

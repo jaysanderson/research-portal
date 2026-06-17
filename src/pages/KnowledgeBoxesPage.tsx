@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck, Workflow } from 'lucide-react';
+import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck, Workflow, EyeOff, RotateCcw } from 'lucide-react';
 import { useConfig, useCurrentKb } from '../lib/hooks';
 import {
-  mergedKbs, getLocalKbs, removeLocalKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
+  mergedKbs, hiddenKbs, getLocalKbs, removeLocalKb, hideKb, unhideKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
   type KbInfo, type LocalKb,
 } from '../lib/api';
 import { PageHeader } from '../components/PageHeader';
@@ -20,6 +20,14 @@ export default function KnowledgeBoxesPage() {
   useEffect(() => { const h = () => bump((x) => x + 1); window.addEventListener('rp-kb-change', h); return () => window.removeEventListener('rp-kb-change', h); }, []);
 
   const kbs = mergedKbs(config);
+  const hidden = hiddenKbs(config);
+  const removeKb = (kb: KbInfo) => {
+    if (kb.source === 'local') {
+      if (confirm(`Remove “${kb.name}”? This deletes it from this browser.`)) removeLocalKb(kb.id);
+    } else if (confirm(`Hide “${kb.name}”? It’s server-configured, so it can’t be deleted from the browser — but you can restore it here anytime.`)) {
+      hideKb(kb.id);
+    }
+  };
   const openAdd = () => { setEditing(null); setAddOpen(true); };
   const openEdit = (id: string) => { const local = getLocalKbs().find((k) => k.id === id) || null; setEditing(local); setAddOpen(true); };
 
@@ -44,14 +52,30 @@ export default function KnowledgeBoxesPage() {
               onSetActive={() => { setSelectedKbId(kb.id); window.location.assign('/'); }}
               onEdit={() => openEdit(kb.id)}
               onAgent={() => setAgentKb(kb)}
-              onRemove={() => { if (confirm(`Remove “${kb.name}”?`)) removeLocalKb(kb.id); }} />
+              onRemove={() => removeKb(kb)} />
           ))}
+        </div>
+      )}
+
+      {hidden.length > 0 && (
+        <div className="mt-8">
+          <h3 className="t-overline mb-2 text-ink-400">Hidden ({hidden.length})</h3>
+          <div className="space-y-2">
+            {hidden.map((kb) => (
+              <div key={kb.id} className="flex items-center gap-3 rounded-lg border border-ink-100 bg-ink-50/60 px-4 py-2.5">
+                <Database size={15} className="shrink-0 text-ink-300" />
+                <span className="font-medium text-ink-600">{kb.name}</span>
+                <span className="chip">{kb.source === 'local' ? 'Added by you' : 'Built-in'}</span>
+                <button onClick={() => unhideKb(kb.id)} className="btn-outline btn-sm ml-auto"><RotateCcw size={13} /> Restore</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       <p className="mt-5 flex items-start gap-1.5 text-xs text-ink-400">
         <ShieldCheck size={13} className="mt-0.5 shrink-0" />
-        Built-in boxes are server-configured (keys never leave the server). Boxes you add are stored in this browser and proxied securely.
+        Built-in boxes are server-configured (keys never leave the server) — removing one hides it for this browser; restore it anytime. Boxes you add are stored in this browser and proxied securely.
       </p>
 
       <AddKbModal open={addOpen} editing={editing} onClose={() => setAddOpen(false)} />
@@ -101,7 +125,9 @@ function KbRow({ kb, isCurrent, onSetActive, onEdit, onAgent, onRemove }: {
           <button onClick={onAgent} className="btn-outline btn-sm"><Workflow size={13} /> {kb.aragConfigured ? 'Edit agent' : 'Add agent'}</button>
           {!isCurrent && <button onClick={onSetActive} className="btn-outline btn-sm"><Check size={13} /> Set active</button>}
           {kb.source === 'local' && <button onClick={onEdit} className="btn-ghost btn-sm"><Pencil size={13} /> Edit</button>}
-          {kb.source === 'local' && <button onClick={onRemove} className="btn-ghost btn-sm text-data-clay"><Trash2 size={13} /></button>}
+          <button onClick={onRemove} title={kb.source === 'local' ? 'Remove' : 'Hide'} className="btn-ghost btn-sm text-data-clay">
+            {kb.source === 'local' ? <Trash2 size={13} /> : <EyeOff size={13} />}
+          </button>
         </div>
       </div>
 
