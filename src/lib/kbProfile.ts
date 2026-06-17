@@ -1,7 +1,8 @@
-// Dynamic, KB-tailored copy. We ask the Knowledge Box to describe itself once,
-// then cache aggressively per-KB in localStorage so the app instantly reads as
-// bespoke to whatever subject is loaded (CMS/DXP, agri R&D, anything).
-import { askStructured } from './nuclia';
+// Dynamic, KB-tailored copy. The server generates each KB's self-profile once and
+// caches it (shared across all users); the client also caches in localStorage for
+// an instant per-user revisit. So the first visitor triggers one generation and
+// everyone after — on any device — gets it immediately.
+import { kbHeaders } from './api';
 
 export interface KbProfile {
   subject: string;       // short domain label
@@ -11,28 +12,7 @@ export interface KbProfile {
   topics: string[];
 }
 
-const PROFILE_SCHEMA = {
-  name: 'kb_profile',
-  description: 'A profile of this knowledge base used to tailor a research portal UI.',
-  parameters: {
-    type: 'object',
-    properties: {
-      subject: { type: 'string', description: 'A 2–4 word domain label for this corpus, e.g. "CMS & Digital Experience".' },
-      tagline: { type: 'string', description: 'One short sentence (max ~12 words) for a hero subtitle.' },
-      description: { type: 'string', description: 'One sentence describing what a user can research here.' },
-      exampleQuestions: { type: 'array', items: { type: 'string' }, description: 'Five specific, answerable questions grounded in this knowledge base.' },
-      topics: { type: 'array', items: { type: 'string' }, description: 'Six short topic labels (1–3 words) a user might search.' },
-    },
-    required: ['subject', 'tagline', 'description', 'exampleQuestions', 'topics'],
-  },
-};
-
-const PROFILE_QUERY =
-  'Profile this knowledge base for a research portal. Identify its overall subject domain, ' +
-  'a concise tagline, a one-sentence description of what can be researched here, five specific ' +
-  'example questions it can answer, and six key topics users might explore.';
-
-const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — aggressive
+const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — aggressive (client side)
 const VERSION = 1;
 const keyFor = (kbId: string) => `rp_kbprofile_${VERSION}_${kbId}`;
 const mem = new Map<string, KbProfile>();
@@ -56,7 +36,10 @@ function writeProfileCache(kbId: string, data: KbProfile) {
 
 export async function generateProfile(kbId: string, opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<KbProfile> {
   if (!opts.force) { const c = readProfileCache(kbId); if (c) return c; }
-  const { object } = await askStructured<KbProfile>(PROFILE_QUERY, PROFILE_SCHEMA, { signal: opts.signal });
+  // Server generates + caches once per KB (shared); kbHeaders() selects the KB.
+  const res = await fetch(`/api/profile${opts.force ? '?force=1' : ''}`, { headers: kbHeaders(), signal: opts.signal });
+  if (!res.ok) throw new Error(`profile -> ${res.status}`);
+  const object = await res.json();
   const clean: KbProfile = {
     subject: object.subject || '',
     tagline: object.tagline || '',

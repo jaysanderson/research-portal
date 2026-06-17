@@ -332,6 +332,74 @@ app.get('/api/graph', async (req, res) => {
   }
 });
 
+// ---- KB self-profile: generated once per KB, cached server-side (shared by all users) ----
+const PROFILE_QUERY =
+  'Profile this knowledge base for a research portal. Identify its overall subject domain, a concise ' +
+  'tagline, a one-sentence description of what can be researched here, five specific example questions ' +
+  'it can answer, and six key topics users might explore.';
+const PROFILE_SCHEMA = {
+  name: 'kb_profile',
+  description: 'A profile of this knowledge base used to tailor a research portal UI.',
+  parameters: {
+    type: 'object',
+    properties: {
+      subject: { type: 'string', description: 'A 2-4 word domain label.' },
+      tagline: { type: 'string', description: 'One short sentence (max ~12 words) for a hero subtitle.' },
+      description: { type: 'string', description: 'One sentence describing what a user can research here.' },
+      exampleQuestions: { type: 'array', items: { type: 'string' }, description: 'Five specific, answerable questions.' },
+      topics: { type: 'array', items: { type: 'string' }, description: 'Six short topic labels (1-3 words).' },
+    },
+    required: ['subject', 'tagline', 'description', 'exampleQuestions', 'topics'],
+  },
+};
+const PROFILE_TTL = 30 * 24 * 60 * 60 * 1000;
+const profileCache = new Map();    // kb.base -> { data, ts }
+const profileInflight = new Map(); // kb.base -> Promise (dedupe concurrent first-hits)
+
+async function buildProfile(kb) {
+  const body = { query: PROFILE_QUERY, features: ['keyword', 'semantic'], answer_json_schema: PROFILE_SCHEMA, show: ['basic'] };
+  const r = await fetch(`${kb.base}/ask`, {
+    method: 'POST',
+    headers: { 'X-NUCLIA-SERVICEACCOUNT': `Bearer ${kb.readerKey}`, 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(60000),
+  });
+  const text = await r.text();
+  let obj = null;
+  for (const line of text.split('\n')) {
+    const s = line.trim(); if (!s) continue;
+    let o; try { o = JSON.parse(s.startsWith('data:') ? s.slice(5) : s); } catch { continue; }
+    const it = o.item || o;
+    if (it.type === 'answer_json' && it.object) obj = it.object;
+  }
+  if (!obj) throw new Error('No profile produced');
+  return {
+    subject: obj.subject || '', tagline: obj.tagline || '', description: obj.description || '',
+    exampleQuestions: (obj.exampleQuestions || []).slice(0, 5), topics: (obj.topics || []).slice(0, 6),
+  };
+}
+
+app.get('/api/profile', async (req, res) => {
+  const kb = getKb(req);
+  if (kbError(res, kb)) return;
+  const key = kb.base;
+  const force = req.query.force === '1';
+  const cached = profileCache.get(key);
+  if (!force && cached && Date.now() - cached.ts < PROFILE_TTL) {
+    res.set('Cache-Control', 'public, max-age=86400');
+    return res.json(cached.data);
+  }
+  try {
+    if (!profileInflight.has(key)) profileInflight.set(key, buildProfile(kb).finally(() => profileInflight.delete(key)));
+    const data = await profileInflight.get(key);
+    profileCache.set(key, { data, ts: Date.now() });
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ detail: 'Profile generation failed', error: String(err).slice(0, 160) });
+  }
+});
+
 // Static SPA (production)
 const DIST = join(ROOT, 'dist');
 if (existsSync(DIST)) {
