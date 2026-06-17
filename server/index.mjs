@@ -33,27 +33,36 @@ const PORT = process.env.PORT || 8787;
 const GEN_MODEL = process.env.NUCLIA_GENERATIVE_MODEL || '';
 const trimUrl = (u) => (u || '').replace(/\/+$/, '');
 
-// ---- Build the Knowledge Box registry from env (prefix '' and 'KB2') ----
-function kbFromPrefix(p, fallbackId, fallbackName) {
-  const base = trimUrl(process.env[`NUCLIA_${p}URL`]);
-  const writerKey = process.env[`NUCLIA_${p}API_KEY`] || '';
+// ---- Build the Knowledge Box registry from env ----
+function makeKb({ url, apiKey, readerKey, id, name, fallbackId, fallbackName, aragBase, aragId, aragKey }) {
+  const base = trimUrl(url);
+  const writerKey = apiKey || '';
   if (!base || !writerKey) return null;
-  const aragBase = trimUrl(process.env[`NUCLIA_${p}ARAG_BASE_URL`]);
-  const aragId = process.env[`NUCLIA_${p}ARAG_AGENT_ID`] || '';
-  const aragKey = process.env[`NUCLIA_${p}ARAG_API_KEY`] || '';
+  const ab = trimUrl(aragBase);
   return {
-    id: process.env[`NUCLIA_${p}ID`] || fallbackId,
-    name: process.env[`NUCLIA_${p}NAME`] || fallbackName,
+    id: id || fallbackId,
+    name: name || fallbackName,
     base,
-    readerKey: process.env[`NUCLIA_${p}READER_KEY`] || writerKey,
+    readerKey: readerKey || writerKey,
     writerKey,
-    arag: aragBase && aragId && aragKey ? { base: aragBase, agentId: aragId, apiKey: aragKey } : null,
+    arag: ab && aragId && aragKey ? { base: ab, agentId: aragId, apiKey: aragKey } : null,
   };
 }
 
+const e = process.env;
 const KBS = [
-  kbFromPrefix('KB_', 'cms-dxp', 'CMS / DXP Market'),       // NUCLIA_KB_URL etc.
-  kbFromPrefix('KB2_', 'member', 'Member Knowledge'),        // NUCLIA_KB2_URL etc.
+  // Primary KB uses the original (unprefixed) var names.
+  makeKb({
+    url: e.NUCLIA_KB_URL, apiKey: e.NUCLIA_API_KEY, readerKey: e.NUCLIA_READER_KEY,
+    id: e.NUCLIA_KB_ID, name: e.NUCLIA_KB_NAME, fallbackId: 'cms-dxp', fallbackName: 'CMS / DXP Market',
+    aragBase: e.NUCLIA_ARAG_BASE_URL, aragId: e.NUCLIA_ARAG_AGENT_ID, aragKey: e.NUCLIA_ARAG_API_KEY,
+  }),
+  // Second KB uses NUCLIA_KB2_* var names.
+  makeKb({
+    url: e.NUCLIA_KB2_URL, apiKey: e.NUCLIA_KB2_API_KEY, readerKey: e.NUCLIA_KB2_READER_KEY,
+    id: e.NUCLIA_KB2_ID, name: e.NUCLIA_KB2_NAME, fallbackId: 'member', fallbackName: 'Member Knowledge',
+    aragBase: e.NUCLIA_KB2_ARAG_BASE_URL, aragId: e.NUCLIA_KB2_ARAG_AGENT_ID, aragKey: e.NUCLIA_KB2_ARAG_API_KEY,
+  }),
 ].filter(Boolean);
 
 const getKb = (req) => {
