@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Loader2 } from 'lucide-react';
-import { getResource } from '../lib/nuclia';
+import { ArrowLeft, ExternalLink, Download } from 'lucide-react';
+import { getResource, resourceFileUrl, thumbnailUrl } from '../lib/nuclia';
 import { useChat } from '../lib/useChat';
+import { useCurrentKb } from '../lib/hooks';
 import { ChatThread } from '../components/chat/ChatThread';
 import { StatusChip } from '../components/StatusChip';
 import { SaveButton } from '../components/SaveButton';
+import { ErrorState } from '../components/States';
 import { cleanTitle, stripBoilerplate } from '../lib/util';
 
+interface FileField { fieldId: string; contentType: string; filename?: string }
 interface Detail {
   title: string;
   url?: string;
   summary?: string;
   status?: string;
   text: string;
+  thumbnail?: string;
+  file?: FileField;
   labels: { labelset: string; label: string }[];
 }
 
@@ -31,8 +36,18 @@ function extractText(r: any): string {
   return parts.join('\n\n').trim();
 }
 
+function pickFile(r: any): FileField | undefined {
+  const files = r?.data?.files || {};
+  for (const [fieldId, fv] of Object.entries<any>(files)) {
+    const f = fv?.value?.file;
+    if (f) return { fieldId, contentType: f.content_type || '', filename: f.filename };
+  }
+  return undefined;
+}
+
 export default function KnowledgeDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const kb = useCurrentKb();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +55,7 @@ export default function KnowledgeDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true); setError(null);
+    setLoading(true); setError(null); setDetail(null);
     getResource(id).then((r) => {
       setDetail({
         title: r.title || '(untitled)',
@@ -48,18 +63,26 @@ export default function KnowledgeDetailPage() {
         summary: r.summary || r?.computedmetadata?.summary,
         status: r.metadata?.status,
         text: extractText(r),
+        thumbnail: r.thumbnail,
+        file: pickFile(r),
         labels: r?.usermetadata?.classifications || [],
       });
-    }).catch((e) => setError(String(e).slice(0, 160))).finally(() => setLoading(false));
+    }).catch((e) => setError(String(e))).finally(() => setLoading(false));
   }, [id]);
+
+  const mediaUrl = detail?.file && id && kb?.id ? resourceFileUrl(id, detail.file.fieldId, kb.id) : null;
+  const thumbUrl = detail?.thumbnail && kb?.id ? thumbnailUrl(detail.thumbnail, kb.id) : null;
+  const ct = detail?.file?.contentType || '';
+  const isMedia = mediaUrl && /^(video|audio|image)\//.test(ct);
+  const isPdf = mediaUrl && ct === 'application/pdf';
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-6 md:px-8">
       <Link to="/library" className="btn-ghost mb-4 text-sm"><ArrowLeft size={15} /> Back to library</Link>
       {loading ? (
-        <div className="space-y-3"><div className="skeleton h-8 w-2/3" /><div className="skeleton h-64 w-full rounded-xl" /></div>
+        <div className="space-y-3"><div className="skeleton h-8 w-2/3" /><div className="skeleton h-72 w-full rounded-xl" /></div>
       ) : error ? (
-        <div className="card border-rose-200 bg-rose-50 p-5 text-rose-700">{error}</div>
+        <ErrorState message="Couldn’t load this resource." onRetry={() => location.reload()} />
       ) : detail && (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <article className="min-w-0">
@@ -69,7 +92,7 @@ export default function KnowledgeDetailPage() {
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {detail.labels.map((c, i) => <span key={i} className="chip">{c.label}</span>)}
-              <SaveButton item={() => ({ type: 'resource', title: detail.title, content: detail.summary || detail.text.slice(0, 500), url: detail.url, resourceId: id })} />
+              <SaveButton item={() => ({ type: 'resource', title: cleanTitle(detail.title), content: detail.summary || detail.text.slice(0, 500), url: detail.url, resourceId: id })} />
               {detail.url && (
                 <a href={detail.url} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-sm text-brand-600 hover:underline">
                   <ExternalLink size={14} /> {safeHost(detail.url)}
@@ -77,21 +100,56 @@ export default function KnowledgeDetailPage() {
               )}
             </div>
 
+            {/* Media: stream video/audio, render PDF/image inline */}
+            {isMedia && ct.startsWith('video') && (
+              <video className="mt-5 max-h-[72vh] w-full rounded-xl bg-black" src={mediaUrl!} poster={thumbUrl || undefined} controls preload="metadata" />
+            )}
+            {isMedia && ct.startsWith('audio') && (
+              <audio className="mt-5 w-full" src={mediaUrl!} controls preload="metadata" />
+            )}
+            {isMedia && ct.startsWith('image') && (
+              <img className="mt-5 w-full rounded-xl border border-ink-200" src={mediaUrl!} alt={cleanTitle(detail.title)} />
+            )}
+            {isPdf && (
+              <div className="mt-5 overflow-hidden rounded-xl border border-ink-200">
+                <iframe title={cleanTitle(detail.title)} src={`${mediaUrl}#view=FitH`} className="h-[80vh] w-full" />
+              </div>
+            )}
+
+            {/* Link resources: a webpage we can't iframe — show preview + open */}
+            {!detail.file && detail.url && (
+              <a href={detail.url} target="_blank" rel="noreferrer" className="card card-hover mt-5 block overflow-hidden">
+                {thumbUrl && <img src={thumbUrl} alt="" className="max-h-80 w-full object-cover object-top" />}
+                <div className="flex items-center justify-between px-4 py-3">
+                  <span className="text-sm text-ink-600">{safeHost(detail.url)}</span>
+                  <span className="inline-flex items-center gap-1 text-sm font-medium text-brand-700">Open original <ExternalLink size={14} /></span>
+                </div>
+              </a>
+            )}
+
+            {/* File that can't be embedded (or local KB) — offer a download/open */}
+            {detail.file && !isMedia && !isPdf && mediaUrl && (
+              <a href={mediaUrl} target="_blank" rel="noreferrer" className="btn-outline mt-5"><Download size={15} /> Open {detail.file.filename || 'file'}</a>
+            )}
+            {detail.file && !mediaUrl && (
+              <p className="mt-5 text-sm text-ink-500">Inline preview isn’t available for this Knowledge Box. {detail.url && <a className="text-brand-700 underline" href={detail.url} target="_blank" rel="noreferrer">Open source</a>}</p>
+            )}
+
             {detail.summary && (
               <div className="card mt-5 p-4">
-                <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-400">Summary</div>
+                <div className="mb-1 t-overline">Summary</div>
                 <p className="text-sm text-ink-700">{detail.summary}</p>
               </div>
             )}
 
-            <div className="card mt-4 p-5">
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-400">Extracted content</div>
+            <details className="card mt-4 p-5" open={!detail.file}>
+              <summary className="t-overline cursor-pointer select-none">{detail.file || detail.url ? 'Extracted text' : 'Content'}</summary>
               {detail.text ? (
-                <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{stripBoilerplate(detail.text)}</div>
+                <div className="mt-3 max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{stripBoilerplate(detail.text)}</div>
               ) : (
-                <p className="text-sm text-ink-400">No extracted text available{detail.status === 'PENDING' ? ' yet — still processing.' : '.'}</p>
+                <p className="mt-3 text-sm text-ink-400">No extracted text{detail.status === 'PENDING' ? ' yet — still processing.' : '.'}</p>
               )}
-            </div>
+            </details>
           </article>
 
           <aside className="lg:sticky lg:top-20 lg:h-[calc(100vh-7rem)]">
@@ -112,4 +170,4 @@ export default function KnowledgeDetailPage() {
   );
 }
 
-function safeHost(u: string) { try { return new URL(u).hostname; } catch { return u; } }
+function safeHost(u: string) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } }

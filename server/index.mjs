@@ -156,6 +156,8 @@ async function proxy(targetUrl, key, req, res, { injectModel = false } = {}) {
     'X-NUCLIA-SERVICEACCOUNT': `Bearer ${key}`,
     Accept: req.headers['accept'] || 'application/json',
   };
+  // Forward Range so the browser can stream/seek video & large files.
+  if (req.headers['range']) headers['Range'] = req.headers['range'];
   let body;
   if (WRITE_METHODS.has(req.method)) {
     headers['Content-Type'] = 'application/json';
@@ -173,8 +175,13 @@ async function proxy(targetUrl, key, req, res, { injectModel = false } = {}) {
 
   const upstream = await fetch(targetUrl, { method: req.method, headers, body });
   res.status(upstream.status);
-  const ct = upstream.headers.get('content-type');
-  if (ct) res.setHeader('Content-Type', ct);
+  // Pass through media/range headers so streaming, seeking, and inline render work.
+  for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+    const v = upstream.headers.get(h);
+    if (v) res.setHeader(h, v);
+  }
+  // Render media inline (PDF in iframe, video in <video>) rather than forcing a download.
+  if (req.method === 'GET' && /\/download\//.test(targetUrl)) res.setHeader('Content-Disposition', 'inline');
   if (!upstream.body) { res.end(); return; }
   const reader = upstream.body.getReader();
   res.setHeader('Cache-Control', 'no-cache');

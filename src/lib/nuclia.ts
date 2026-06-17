@@ -50,6 +50,13 @@ export function thumbnailUrl(thumbnail: string | undefined, kbId: string): strin
   return `/api/kb/${rest}?kb=${encodeURIComponent(kbId)}`;
 }
 
+/** Inline-streamable URL for a resource's file field (video/PDF/etc.), proxied.
+ *  Media elements can't send headers, so the KB is selected via ?kb=. */
+export function resourceFileUrl(resourceId: string, fieldId: string, kbId: string): string | null {
+  if (!kbId || kbId.startsWith('local-')) return null;
+  return `/api/kb/resource/${resourceId}/file/${fieldId}/download/field?kb=${encodeURIComponent(kbId)}`;
+}
+
 export interface FindParagraph {
   text: string;
   score?: number;
