@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Pencil, Trash2, Check, CircleCheck, Loader2, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
+import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
 import { useConfig, useCurrentKb } from '../lib/hooks';
 import {
   mergedKbs, getLocalKbs, removeLocalKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
@@ -93,7 +93,7 @@ function KbRow({ kb, isCurrent, onSetActive, onEdit, onRemove }: {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <button onClick={runTest} disabled={testing} className="btn-outline btn-sm">{testing ? <Loader2 size={13} className="animate-spin" /> : <CircleCheck size={13} />} Test</button>
+          <button onClick={runTest} disabled={testing} className="btn-outline btn-sm">{testing ? <Loader2 size={13} className="animate-spin" /> : <FlaskConical size={13} />} Test</button>
           {!isCurrent && <button onClick={onSetActive} className="btn-outline btn-sm"><Check size={13} /> Set active</button>}
           {kb.source === 'local' && <button onClick={onEdit} className="btn-ghost btn-sm"><Pencil size={13} /> Edit</button>}
           {kb.source === 'local' && <button onClick={onRemove} className="btn-ghost btn-sm text-data-clay"><Trash2 size={13} /></button>}
