@@ -1,10 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Table2, FileText, GraduationCap, Loader2, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
 import { askStructured, type Citation } from '../lib/nuclia';
 import { comparisonSchema, briefingSchema, quizSchema, type ComparisonOut, type BriefingOut, type QuizOut } from '../lib/schemas';
 import { SaveButton } from '../components/SaveButton';
 import { PageHeader } from '../components/PageHeader';
+import { useKbProfile } from '../lib/hooks';
+import { friendlyError } from '../lib/util';
+import type { KbProfile } from '../lib/kbProfile';
+
+function defaultQuery(kind: 'matrix' | 'briefing' | 'quiz', p: KbProfile | null): string {
+  const subj = p?.subject || 'this knowledge base';
+  if (kind === 'matrix') return `Compare the leading options or approaches in ${subj} across key criteria.`;
+  if (kind === 'briefing') return `Write an executive briefing on the current state of ${subj}.`;
+  return `Create a 5-question assessment on the key concepts in ${subj}.`;
+}
+
+/** Keeps a query field seeded from the KB profile until the user edits it. */
+function useSeededQuery(kind: 'matrix' | 'briefing' | 'quiz') {
+  const { profile } = useKbProfile();
+  const [q, setQ] = useState('');
+  const [touched, setTouched] = useState(false);
+  useEffect(() => { if (!touched) setQ(defaultQuery(kind, profile)); }, [profile, touched, kind]);
+  return { q, setQ: (v: string) => { setQ(v); setTouched(true); } };
+}
 
 type Tab = 'matrix' | 'briefing' | 'quiz';
 
@@ -70,13 +89,13 @@ function useGenerator<T>(schema: any) {
     if (!query.trim()) return;
     setBusy(true); setErr(null); setOut(null);
     try { const { object, citations } = await askStructured<T>(query, schema); setOut(object); setCites(citations); }
-    catch (e) { setErr(String(e).slice(0, 160)); } finally { setBusy(false); }
+    catch (e) { setErr(friendlyError(e, 'Could not generate this artifact. Try a narrower request.')); } finally { setBusy(false); }
   };
   return { busy, out, cites, err, run };
 }
 
 function MatrixTool() {
-  const [q, setQ] = useState('Compare Progress Sitefinity, Sitecore, Optimizely and Adobe Experience Manager across personalization, headless support, pricing and developer experience.');
+  const { q, setQ } = useSeededQuery('matrix');
   const { busy, out, cites, err, run } = useGenerator<ComparisonOut>(comparisonSchema);
   return (
     <div className="card p-5">
@@ -85,7 +104,7 @@ function MatrixTool() {
       {out && (
         <div className="mt-5 overflow-x-auto">
           <table className="w-full border-collapse text-sm">
-            <thead><tr><th className="border border-ink-200 bg-ink-50 px-3 py-2 text-left">Vendor</th>
+            <thead><tr><th className="border border-ink-200 bg-ink-50 px-3 py-2 text-left">Option</th>
               {out.dimensions.map((d) => <th key={d} className="border border-ink-200 bg-ink-50 px-3 py-2 text-left">{d}</th>)}</tr></thead>
             <tbody>
               {out.vendors.map((v) => (
@@ -107,7 +126,7 @@ function MatrixTool() {
 }
 
 function BriefingTool() {
-  const [q, setQ] = useState('Write an executive briefing on the state of the composable DXP market and the leading vendors.');
+  const { q, setQ } = useSeededQuery('briefing');
   const { busy, out, cites, err, run } = useGenerator<BriefingOut>(briefingSchema);
   return (
     <div className="card p-5">
@@ -135,7 +154,7 @@ function BriefingTool() {
 }
 
 function QuizTool() {
-  const [q, setQ] = useState('Create a 5-question assessment on enterprise CMS/DXP selection criteria and vendor differentiators.');
+  const { q, setQ } = useSeededQuery('quiz');
   const { busy, out, cites, err, run } = useGenerator<QuizOut>(quizSchema);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);

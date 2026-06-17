@@ -13,6 +13,7 @@ import { streamAgent } from '../lib/aragAgent';
 import { isRefusal, type Citation } from '../lib/nuclia';
 import { useCurrentKb, useKbProfile } from '../lib/hooks';
 import { renderMarkdown, toPlainText } from '../lib/markdown';
+import { cleanTitle } from '../lib/util';
 import { PageHeader } from '../components/PageHeader';
 import { Citations } from '../components/Citations';
 import { SaveButton } from '../components/SaveButton';
@@ -59,7 +60,7 @@ export default function AgenticPage() {
   const abortRef = useRef<AbortController | null>(null);
   const sessionRef = useRef<string>(`sess-${Math.random().toString(36).slice(2)}`);
 
-  useEffect(() => { setTraces(loadTraces()); }, []);
+  useEffect(() => { setTraces(loadTraces(kb?.id)); }, [kb?.id]);
   // Pick up a query handed off from the command palette.
   useEffect(() => {
     const q = sessionStorage.getItem('rp_prefill');
@@ -102,13 +103,13 @@ export default function AgenticPage() {
           id: `${startedAt}`, question: query, startedAt, durationMs: Date.now() - startedAt,
           chunks: chk, answer: acc, citations: cites, consumption: cons, remi: remiScore, steps: stepList, stages,
         };
-        saveTrace(trace); setTraces(loadTraces());
+        saveTrace(kb?.id || '', trace); setTraces(loadTraces(kb?.id));
       }
     }
   };
 
   const stop = () => { abortRef.current?.abort(); setRunning(false); };
-  const feedback = (id: string, fb: 'up' | 'down') => { updateTraceFeedback(id, fb); setTraces(loadTraces()); };
+  const feedback = (id: string, fb: 'up' | 'down') => { updateTraceFeedback(kb?.id || '', id, fb); setTraces(loadTraces(kb?.id)); };
 
   const lastActive = STAGES.reduce((acc, s, i) => (activeStages[s.id] !== undefined ? i : acc), -1);
   const currentStep = running ? (STAGES[lastActive]?.label ?? 'Starting') : null;
@@ -214,7 +215,7 @@ export default function AgenticPage() {
                           <Link to={`/knowledge/${c.resourceId}`} key={i} className="block rounded-md border border-ink-100 p-2.5 hover:border-brand-200 hover:bg-brand-50/40">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold text-ink-300">{i + 1}</span>
-                              <span className="truncate text-xs font-semibold text-ink-800">{c.title}</span>
+                              <span className="truncate text-xs font-semibold text-ink-800">{cleanTitle(c.title)}</span>
                               <span className="ml-auto flex gap-0.5" title="Match strength">
                                 {[1, 2, 3].map((n) => <span key={n} className={`h-1.5 w-1.5 rounded-full ${n <= strength(c.score) ? 'bg-brand-500' : 'bg-ink-200'}`} />)}
                               </span>

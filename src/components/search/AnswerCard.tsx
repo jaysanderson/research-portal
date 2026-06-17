@@ -3,6 +3,7 @@ import { Sparkles, Loader2 } from 'lucide-react';
 import { ask, isRefusal, type Citation } from '../../lib/nuclia';
 import { renderMarkdown } from '../../lib/markdown';
 import { Citations } from '../Citations';
+import { friendlyError } from '../../lib/util';
 
 export function AnswerCard({ query, filters }: { query: string; filters: string[] }) {
   const [answer, setAnswer] = useState('');
@@ -24,7 +25,7 @@ export function AnswerCard({ query, filters }: { query: string; filters: string[
           if (chunk.kind === 'citations' && chunk.citations) setCitations(chunk.citations);
         }
       } catch (err) {
-        if (!ctrl.signal.aborted) setError(String(err).slice(0, 160));
+        if (!ctrl.signal.aborted) setError(friendlyError(err, 'Could not generate an answer. Please try again.'));
       } finally {
         if (!ctrl.signal.aborted) setStreaming(false);
       }

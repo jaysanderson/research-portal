@@ -313,7 +313,9 @@ export async function askStructured<T = any>(
 ): Promise<{ object: T; citations: Citation[] }> {
   // Nuclia rejects citations + answer_json_schema together, so we derive sources
   // from the retrieval event (the resources the answer was grounded in).
-  const body: any = { query, features: ['keyword', 'semantic'], answer_json_schema: schema, show: ['basic', 'origin'] };
+  // max_tokens must be generous: structured JSON for matrices/briefings is large
+  // and the default cap triggers a 412 "Error generating json: max_tokens".
+  const body: any = { query, features: ['keyword', 'semantic'], answer_json_schema: schema, show: ['basic', 'origin'], max_tokens: 4096 };
   if (opts.filters?.length) body.filters = opts.filters;
 
   let object: any = null;

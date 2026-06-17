@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { Upload, Search, MessageSquare, Workflow, FileText, Layers, Hash, Tags, ArrowRight } from 'lucide-react';
+import { Upload, Search, MessageSquare, Workflow, FileText, Layers, Hash, Database, ArrowRight } from 'lucide-react';
 import { useCurrentKb, useCounters, useKbProfile } from '../lib/hooks';
-import { getLabelsets } from '../lib/nuclia';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
 
@@ -10,9 +8,6 @@ export default function DashboardPage() {
   const kb = useCurrentKb();
   const { profile } = useKbProfile();
   const { counters } = useCounters();
-  const [taxonomies, setTaxonomies] = useState<number | undefined>(undefined);
-
-  useEffect(() => { getLabelsets().then((ls) => setTaxonomies(Object.keys(ls).length)).catch(() => setTaxonomies(undefined)); }, []);
 
   const empty = counters !== null && counters.resources === 0;
 
@@ -34,7 +29,7 @@ export default function DashboardPage() {
         <Stat icon={<FileText size={16} strokeWidth={1.75} />} label="Resources" value={counters?.resources} />
         <Stat icon={<Layers size={16} strokeWidth={1.75} />} label="Paragraphs" value={counters?.paragraphs} />
         <Stat icon={<Hash size={16} strokeWidth={1.75} />} label="Sentences" value={counters?.sentences} />
-        <Stat icon={<Tags size={16} strokeWidth={1.75} />} label="Taxonomies" value={taxonomies} />
+        <Stat icon={<Database size={16} strokeWidth={1.75} />} label="Index MB" value={counters ? Math.round(counters.index_size / 1e6) : undefined} />
       </div>
 
       {empty ? (

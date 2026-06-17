@@ -154,17 +154,17 @@ export async function* askAgentic(
   }
 }
 
-// ---- trace persistence (localStorage; swap for Supabase in production) ----
-const TRACE_KEY = 'rp_agentic_traces';
-export function loadTraces(): TurnTrace[] {
-  try { return JSON.parse(localStorage.getItem(TRACE_KEY) || '[]'); } catch { return []; }
+// ---- trace persistence, scoped per Knowledge Box (localStorage; this device only) ----
+const traceKey = (kbId?: string) => `rp_agentic_traces_${kbId || 'default'}`;
+export function loadTraces(kbId?: string): TurnTrace[] {
+  try { return JSON.parse(localStorage.getItem(traceKey(kbId)) || '[]'); } catch { return []; }
 }
-export function saveTrace(t: TurnTrace) {
-  const all = loadTraces();
+export function saveTrace(kbId: string, t: TurnTrace) {
+  const all = loadTraces(kbId);
   all.unshift(t);
-  localStorage.setItem(TRACE_KEY, JSON.stringify(all.slice(0, 50)));
+  localStorage.setItem(traceKey(kbId), JSON.stringify(all.slice(0, 50)));
 }
-export function updateTraceFeedback(id: string, feedback: 'up' | 'down') {
-  const all = loadTraces().map((t) => (t.id === id ? { ...t, feedback } : t));
-  localStorage.setItem(TRACE_KEY, JSON.stringify(all));
+export function updateTraceFeedback(kbId: string, id: string, feedback: 'up' | 'down') {
+  const all = loadTraces(kbId).map((t) => (t.id === id ? { ...t, feedback } : t));
+  localStorage.setItem(traceKey(kbId), JSON.stringify(all));
 }

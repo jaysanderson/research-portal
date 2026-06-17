@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Trash2, ExternalLink, RotateCw, FileText, Link2, File } from 'lucide-react';
 import { listCatalog, deleteResource, type ResourceCard } from '../../lib/nuclia';
 import { StatusChip } from '../StatusChip';
+import { cleanTitle } from '../../lib/util';
 
 function iconFor(r: ResourceCard) {
   if (r.url) return <Link2 size={15} className="text-ink-400" />;
@@ -53,7 +54,7 @@ export function RecentResources({ refreshKey }: { refreshKey: number }) {
             <li key={r.id} className="flex items-center gap-3 px-4 py-2.5">
               {iconFor(r)}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-ink-800">{r.title}</div>
+                <div className="truncate text-sm font-medium text-ink-800">{cleanTitle(r.title)}</div>
                 {r.url && <div className="truncate text-xs text-ink-400">{r.url}</div>}
               </div>
               <StatusChip status={r.status} />

@@ -46,7 +46,7 @@ export function ChatThread({ messages, busy, onSend, onStop, placeholder, compac
         <div className="flex items-end gap-2">
           <label className="sr-only" htmlFor="chat-input">Message</label>
           <textarea id="chat-input" value={input} onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(e); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
             rows={compact ? 1 : 2} placeholder={placeholder || 'Ask a question…'} className="input flex-1 resize-none" />
           {busy ? (
             <button type="button" onClick={onStop} className="btn-secondary" aria-label="Stop generating"><Square size={15} /></button>

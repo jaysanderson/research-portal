@@ -1,8 +1,8 @@
 // JSON schemas for Nuclia answer_json_schema structured generation.
 
 export const comparisonSchema = {
-  name: 'vendor_comparison_matrix',
-  description: 'A structured comparison matrix of CMS/DXP vendors across dimensions, grounded in the knowledge base.',
+  name: 'comparison_matrix',
+  description: 'A structured comparison matrix of the leading options, approaches, or entities across dimensions, grounded in the knowledge base.',
   parameters: {
     type: 'object',
     properties: {

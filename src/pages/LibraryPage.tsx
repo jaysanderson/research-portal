@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, SkeletonGrid } from '../components/States';
 import { useCurrentKb, useKbProfile } from '../lib/hooks';
 import { StatusChip } from '../components/StatusChip';
+import { cleanTitle } from '../lib/util';
 
 const PAGE = 24;
 
@@ -125,7 +126,7 @@ function LibCard({ r, kbId }: { r: ResourceCard; kbId: string }) {
         {r.status && r.status !== 'PROCESSED' && <span className="absolute right-2 top-2"><StatusChip status={r.status} /></span>}
       </div>
       <div className="flex flex-1 flex-col p-3.5">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-900 group-hover:text-brand-700">{r.title}</h3>
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-900 group-hover:text-brand-700">{cleanTitle(r.title)}</h3>
         {r.url && <div className="mt-1 truncate text-xs text-ink-500">{safeHost(r.url)}</div>}
         <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
           {r.classifications.slice(0, 3).map((c, i) => <span key={i} className="chip">{c.label}</span>)}

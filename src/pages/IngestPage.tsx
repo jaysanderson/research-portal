@@ -61,13 +61,13 @@ function LabelInputs({ vendor, setVendor, topics, setTopics }: {
   return (
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
       <label className="block">
-        <span className="text-xs font-semibold text-ink-500">Vendor (optional)</span>
-        <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. Progress Sitefinity"
+        <span className="text-xs font-semibold text-ink-500">Primary label (optional)</span>
+        <input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. a source, author, or category"
           className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
       </label>
       <label className="block">
         <span className="text-xs font-semibold text-ink-500">Topics (comma-separated)</span>
-        <input value={topics} onChange={(e) => setTopics(e.target.value)} placeholder="DXP, Headless CMS"
+        <input value={topics} onChange={(e) => setTopics(e.target.value)} placeholder="comma-separated topics"
           className="mt-1 w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brand-400" />
       </label>
     </div>

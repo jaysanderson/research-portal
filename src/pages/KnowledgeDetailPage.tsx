@@ -6,6 +6,7 @@ import { useChat } from '../lib/useChat';
 import { ChatThread } from '../components/chat/ChatThread';
 import { StatusChip } from '../components/StatusChip';
 import { SaveButton } from '../components/SaveButton';
+import { cleanTitle, stripBoilerplate } from '../lib/util';
 
 interface Detail {
   title: string;
@@ -63,7 +64,7 @@ export default function KnowledgeDetailPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <article className="min-w-0">
             <div className="flex items-start justify-between gap-3">
-              <h1 className="t-display">{detail.title}</h1>
+              <h1 className="t-display">{cleanTitle(detail.title)}</h1>
               <StatusChip status={detail.status} />
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -86,7 +87,7 @@ export default function KnowledgeDetailPage() {
             <div className="card mt-4 p-5">
               <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-400">Extracted content</div>
               {detail.text ? (
-                <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{detail.text}</div>
+                <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{stripBoilerplate(detail.text)}</div>
               ) : (
                 <p className="text-sm text-ink-400">No extracted text available{detail.status === 'PENDING' ? ' yet — still processing.' : '.'}</p>
               )}

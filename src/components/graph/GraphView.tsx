@@ -5,7 +5,8 @@ import type { GraphData, GraphNode } from '../../lib/graph';
 interface SimNode extends GraphNode { x?: number; y?: number; fx?: number | null; fy?: number | null }
 interface SimEdge { source: SimNode; target: SimNode; weight: number }
 
-const COLORS: Record<string, string> = { vendor: '#1A6A4F', topic: '#C8861A', 'resource-type': '#B5543F' };
+// Two-dimension graph: primary nodes green, secondary amber (whatever the
+// taxonomies are named for this KB).
 
 export function GraphView({ data, onSelect, selected }: {
   data: GraphData;
@@ -52,9 +53,10 @@ export function GraphView({ data, onSelect, selected }: {
         .on('drag', (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
         .on('end', (ev, d) => { if (!ev.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }) as any);
 
+    const colorFor = (g: string) => (g === data.primary ? '#1A6A4F' : '#C8861A');
     node.append('circle')
       .attr('r', (d) => r(d.weight))
-      .attr('fill', (d) => COLORS[d.group] || '#94a3b8')
+      .attr('fill', (d) => colorFor(d.group))
       .attr('stroke', '#fff').attr('stroke-width', 1.5);
 
     node.append('text').text((d) => d.label)

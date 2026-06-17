@@ -65,15 +65,17 @@ export default function SettingsPage() {
       </div>
 
       <Panel icon={<Users size={16} />} title="Access control (RBAC)" className="mt-4">
-        <p className="text-sm text-ink-600">
-          Production maps application roles to Nuclia security groups so retrieval is filtered per user:
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div className="mb-3 flex items-start gap-2 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2 text-sm text-accent-700">
+          <Users size={15} className="mt-0.5 shrink-0" />
+          <span><strong>Not enforced in this build.</strong> The app currently runs as a single open workspace with no authentication. Saved items and trace history are local to each browser, not shared between users.</span>
+        </div>
+        <p className="text-sm text-ink-600">Planned for production — application roles map to Nuclia security groups so retrieval is filtered per user:</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3 opacity-90">
           <RoleCard role="Manager" desc="Configure KB, manage taxonomy, ingest, full read." />
           <RoleCard role="Writer" desc="Ingest and classify resources; full read." />
           <RoleCard role="Reader" desc="Search, chat and agentic retrieval only." />
         </div>
-        <p className="mt-3 text-xs text-ink-400">This demo runs as a single workspace. Wire Supabase auth + resource-level security groups to enforce per-user gating.</p>
+        <p className="mt-3 text-xs text-ink-400">To enable: add Supabase (or SSO) auth + resource-level security groups.</p>
       </Panel>
 
       <Panel icon={<Code2 size={16} />} title="Embeddable widget" className="mt-4">
