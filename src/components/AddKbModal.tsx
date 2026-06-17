@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, CheckCircle2, AlertCircle, Plus, ShieldCheck } from 'lucide-react';
 import { addLocalKb, setSelectedKbId, probeKb } from '../lib/api';
 
@@ -44,7 +45,7 @@ export function AddKbModal({ open, onClose }: { open: boolean; onClose: () => vo
     window.location.assign('/');
   };
 
-  return (
+  return createPortal((
     <div className="fixed inset-0 z-[60] flex items-start justify-center bg-ink-900/40 px-4 pt-[10vh]" onClick={close}>
       <div className="w-full max-w-lg overflow-hidden rounded-xl border border-ink-200 bg-white shadow-lg animate-fade-in" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
@@ -93,7 +94,7 @@ export function AddKbModal({ open, onClose }: { open: boolean; onClose: () => vo
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
 
 function hostName(u: string) { try { return new URL(u).host; } catch { return ''; } }
