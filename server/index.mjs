@@ -98,19 +98,30 @@ const kbError = (res, kb) => {
 
 // ---- Live connectivity (so the UI can disable unreachable boxes) ----
 const reach = {}; // id -> { ok, ts }
-async function ensureProbed() {
-  await Promise.all(KBS.map(async (kb) => {
-    const cur = reach[kb.id];
-    if (cur && Date.now() - cur.ts < 60000) return;
+async function probeOnce(kb) {
+  // Two attempts to absorb cold-start TLS/DNS hiccups; generous timeout.
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const r = await fetch(`${kb.base}/counters`, {
         headers: { 'X-NUCLIA-SERVICEACCOUNT': `Bearer ${kb.readerKey}` },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(15000),
       });
-      reach[kb.id] = { ok: r.ok, ts: Date.now() };
-    } catch { reach[kb.id] = { ok: false, ts: Date.now() }; }
+      if (r.ok) return true;
+    } catch { /* retry */ }
+  }
+  return false;
+}
+async function ensureProbed() {
+  await Promise.all(KBS.map(async (kb) => {
+    const cur = reach[kb.id];
+    // Successes are trusted for 5 min; failures re-checked after 15s so a flake heals fast.
+    const ttl = cur?.ok ? 300000 : 15000;
+    if (cur && Date.now() - cur.ts < ttl) return;
+    reach[kb.id] = { ok: await probeOnce(kb), ts: Date.now() };
   }));
 }
+// Warm connectivity at boot so the first page load reflects reality.
+ensureProbed().catch(() => {});
 
 const WRITE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 const READ_POST_PATHS = [/^find$/, /^ask$/, /^search$/, /^catalog$/, /^suggest$/, /^feedback$/, /\/ask$/, /\/search$/];

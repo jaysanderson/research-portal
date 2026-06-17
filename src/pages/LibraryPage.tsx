@@ -4,7 +4,7 @@ import { Search as SearchIcon, Loader2, FileText, Link2, File, Library as LibIco
 import { listCatalog, thumbnailUrl, type ResourceCard } from '../lib/nuclia';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { PageHeader } from '../components/PageHeader';
-import { EmptyState, SkeletonGrid } from '../components/States';
+import { EmptyState, ErrorState, SkeletonGrid } from '../components/States';
 import { useCurrentKb, useKbProfile } from '../lib/hooks';
 import { StatusChip } from '../components/StatusChip';
 
@@ -20,14 +20,15 @@ export default function LibraryPage() {
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   const load = useCallback(async (p: number, q: string, f: string[], append: boolean) => {
-    setLoading(true);
+    setLoading(true); if (!append) setError(false);
     try {
       const res = await listCatalog({ page: p, size: PAGE, query: q || undefined, filters: f.length ? f : undefined });
       setTotal(res.total);
       setItems((prev) => append ? [...prev, ...res.resources] : res.resources);
-    } catch { if (!append) setItems([]); } finally { setLoading(false); }
+    } catch { if (!append) { setItems([]); setError(true); } } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { setPage(0); load(0, query, filters, false); }, [query, filters, load]);
@@ -60,6 +61,8 @@ export default function LibraryPage() {
         <div className="min-w-0">
           {loading && items.length === 0 ? (
             <SkeletonGrid count={6} cols="sm:grid-cols-2 xl:grid-cols-3" height="h-56" />
+          ) : error && items.length === 0 ? (
+            <ErrorState message="Couldn’t load resources — the Knowledge Box may still be waking up." onRetry={() => load(0, query, filters, false)} />
           ) : items.length === 0 ? (
             <EmptyState compact icon={<LibIcon size={22} strokeWidth={1.75} />} title="No resources match"
               description="Try a different keyword or clear the filters." />
