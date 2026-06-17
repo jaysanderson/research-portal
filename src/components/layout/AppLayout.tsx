@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   LayoutDashboard, Search, MessageSquare, Workflow, Library, Share2,
-  Upload, FlaskConical, BarChart3, Tags, Sparkles, ShieldCheck, Menu, X,
+  Upload, FlaskConical, BarChart3, Tags, Sparkles, ShieldCheck, Menu, X, Database,
 } from 'lucide-react';
 import { Logo } from '../Logo';
 import { KbSwitcher } from '../KbSwitcher';
@@ -22,6 +22,7 @@ export const NAV: NavItem[] = [
   { to: '/generate', label: 'Generate', icon: <Sparkles size={18} strokeWidth={1.75} />, section: 'Reason' },
   { to: '/graph', label: 'Knowledge graph', icon: <Share2 size={18} strokeWidth={1.75} />, section: 'Reason' },
   { to: '/workspace', label: 'Workspace', icon: <FlaskConical size={18} strokeWidth={1.75} />, section: 'Organize' },
+  { to: '/knowledge-boxes', label: 'Knowledge Boxes', icon: <Database size={18} strokeWidth={1.75} />, section: 'Manage' },
   { to: '/analytics', label: 'Analytics', icon: <BarChart3 size={18} strokeWidth={1.75} />, section: 'Manage' },
   { to: '/settings', label: 'Governance', icon: <ShieldCheck size={18} strokeWidth={1.75} />, section: 'Manage' },
 ];

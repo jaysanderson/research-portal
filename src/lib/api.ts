@@ -43,9 +43,24 @@ export function addLocalKb(kb: Omit<LocalKb, 'id'>): LocalKb {
   persistLocal([...getLocalKbs(), full]);
   return full;
 }
+export function updateLocalKb(id: string, patch: Partial<Omit<LocalKb, 'id'>>) {
+  persistLocal(getLocalKbs().map((k) => (k.id === id ? { ...k, ...patch } : k)));
+}
 export function removeLocalKb(id: string) {
   persistLocal(getLocalKbs().filter((k) => k.id !== id));
   if (_selectedKbId === id) setSelectedKbId('');
+}
+/** Headers that route a request to a specific KB (built-in id, or local BYO-key). */
+export function headersForKb(kb: { id: string } | LocalKb): Record<string, string> {
+  const local = getLocalKbs().find((k) => k.id === kb.id);
+  if (local) {
+    const h: Record<string, string> = { 'x-kb-url': local.url, 'x-kb-key': local.key };
+    if (local.aragBase && local.aragAgent && local.aragKey) {
+      h['x-kb-arag-url'] = local.aragBase; h['x-kb-arag-agent'] = local.aragAgent; h['x-kb-arag-key'] = local.aragKey;
+    }
+    return h;
+  }
+  return { 'x-kb': kb.id };
 }
 function localToInfo(k: LocalKb): KbInfo {
   let zone: string | null = null;
@@ -103,14 +118,35 @@ export function currentKb(config: PortalConfig | null): KbInfo | null {
   return all.find((k) => k.id === _selectedKbId) || all.find((k) => k.connected) || all[0];
 }
 
-/** Probe an ad-hoc KB's reachability before saving it. */
-export async function probeKb(url: string, key: string): Promise<{ ok: boolean; resources?: number; error?: string }> {
+/** Probe a KB's reachability. Pass either {url,key} (ad-hoc) or a routing header set. */
+export async function probeKb(arg: string | Record<string, string>, key?: string): Promise<{ ok: boolean; resources?: number; error?: string }> {
+  const headers = typeof arg === 'string' ? { 'x-kb-url': arg, 'x-kb-key': key || '' } : arg;
   try {
-    const res = await fetch('/api/kb/counters', { headers: { 'x-kb-url': url, 'x-kb-key': key } });
+    const res = await fetch('/api/kb/counters', { headers });
     if (!res.ok) return { ok: false, error: `${res.status}: ${(await res.text()).slice(0, 160)}` };
     const d = await res.json();
     return { ok: true, resources: d.resources };
   } catch (e) { return { ok: false, error: String(e).slice(0, 160) }; }
+}
+
+/** Probe a Retrieval Agent: confirm it streams (reads the first event, then aborts). */
+export async function probeAgent(headers: Record<string, string>): Promise<{ ok: boolean; error?: string }> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
+  let gotData = false;
+  try {
+    const res = await fetch('/api/agent/session/ephemeral', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...headers },
+      body: JSON.stringify({ question: 'ping' }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) { clearTimeout(timer); return { ok: false, error: `${res.status}: ${(await res.text()).slice(0, 140)}` }; }
+    const reader = res.body?.getReader();
+    if (reader) { await reader.read(); gotData = true; }
+    clearTimeout(timer); ctrl.abort();
+    return { ok: true };
+  } catch (e) { clearTimeout(timer); return gotData ? { ok: true } : { ok: false, error: String(e).slice(0, 140) }; }
 }
 
 /** KB JSON request through the proxy. */

@@ -14,6 +14,7 @@ import GraphPage from './pages/GraphPage';
 import GeneratePage from './pages/GeneratePage';
 import WorkspacePage from './pages/WorkspacePage';
 import AnalyticsPage from './pages/AnalyticsPage';
+import KnowledgeBoxesPage from './pages/KnowledgeBoxesPage';
 import SettingsPage from './pages/SettingsPage';
 import EmbedPage from './pages/EmbedPage';
 import Placeholder from './pages/Placeholder';
@@ -48,6 +49,7 @@ function MainApp() {
         <Route path="/graph" element={<GraphPage />} />
         <Route path="/workspace" element={<WorkspacePage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/knowledge-boxes" element={<KnowledgeBoxesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Placeholder title="Not found" sprint="404" />} />
       </Routes>
