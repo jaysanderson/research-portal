@@ -7,8 +7,7 @@ export default function TaxonomyPage() {
   const [labelsets, setLabelsets] = useState<LabelsetMap>({});
   const [facets, setFacets] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(true);
-  const [newId, setNewId] = useState('');
-  const [newTitle, setNewTitle] = useState('');
+  const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
@@ -24,30 +23,30 @@ export default function TaxonomyPage() {
   useEffect(() => { load(); }, [load]);
 
   const create = async () => {
-    const id = newId.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-    if (!id || !newTitle.trim()) return;
+    const title = newName.trim();
+    // Derive a stable id from the name — the user never sees or types it.
+    const id = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!id || !title) return;
     setCreating(true);
-    try { await createLabelset(id, newTitle.trim(), { multiple: true }); setNewId(''); setNewTitle(''); await load(); }
+    try { await createLabelset(id, title, { multiple: true }); setNewName(''); await load(); }
     catch { /* */ } finally { setCreating(false); }
   };
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-      <PageHeader title="Taxonomy" description="Classification labelsets applied to your resources. Counts reflect indexed content." />
+      <PageHeader title="Taxonomy" description="Categories used to classify your resources. Counts reflect indexed content." />
 
       <div className="card mt-6 p-5">
-        <h3 className="text-sm font-semibold text-ink-800">Create a labelset</h3>
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="block"><span className="text-xs font-semibold text-ink-500">Id</span>
-            <input value={newId} onChange={(e) => setNewId(e.target.value)} placeholder="region"
-              className="mt-1 w-40 rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brand-400" /></label>
-          <label className="block"><span className="text-xs font-semibold text-ink-500">Title</span>
-            <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Region"
-              className="mt-1 w-48 rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brand-400" /></label>
-          <button onClick={create} disabled={creating} className="btn-primary">
-            {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Create
+        <h3 className="text-sm font-semibold text-ink-800">Add a category</h3>
+        <p className="mt-1 text-xs text-ink-500">A way to classify resources — e.g. Region, Topic, Author, or Document type.</p>
+        <form onSubmit={(e) => { e.preventDefault(); create(); }} className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="block flex-1 min-w-[220px]"><span className="text-xs font-semibold text-ink-500">Category name</span>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Region"
+              className="mt-1 w-full rounded-lg border border-ink-300 px-3 py-2 text-sm outline-none focus:border-brand-500" /></label>
+          <button type="submit" disabled={creating || !newName.trim()} className="btn-primary">
+            {creating ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Add category
           </button>
-        </div>
+        </form>
       </div>
 
       {loading ? (
@@ -62,8 +61,7 @@ export default function TaxonomyPage() {
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded-full" style={{ background: ls.color || '#3366ff' }} />
                   <h3 className="font-semibold text-ink-900">{ls.title}</h3>
-                  <span className="chip">{id}</span>
-                  <span className="ml-auto text-xs text-ink-400">{sorted.length} values</span>
+                  <span className="ml-auto text-xs text-ink-400">{sorted.length} {sorted.length === 1 ? 'value' : 'values'}</span>
                 </div>
                 {sorted.length === 0 ? (
                   <p className="mt-3 text-sm text-ink-400">No labels applied yet.</p>
