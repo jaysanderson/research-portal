@@ -109,13 +109,13 @@ function safeHost(u?: string) { if (!u) return ''; try { return new URL(u).hostn
 
 function LibCard({ r, kbId }: { r: ResourceCard; kbId: string }) {
   const src = thumbnailUrl(r.thumbnail, kbId);
-  const [imgOk, setImgOk] = useState(!!src);
+  const [failed, setFailed] = useState(false);
   const { label, Icon } = kindOf(r.icon);
   return (
     <Link to={`/knowledge/${r.id}`} className="card card-hover group flex flex-col overflow-hidden focus-visible:outline-none">
       <div className="relative aspect-video w-full overflow-hidden" style={{ background: gradientFor(r.title) }}>
-        {src && imgOk ? (
-          <img src={src} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" onError={() => setImgOk(false)} />
+        {src && !failed ? (
+          <img src={src} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" onError={() => setFailed(true)} />
         ) : (
           <div className="flex h-full items-center justify-center text-white/85"><Icon size={30} strokeWidth={1.5} /></div>
         )}
