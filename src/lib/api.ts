@@ -10,6 +10,7 @@ export interface KbInfo {
   connected: boolean;
   aragConfigured: boolean;
   source: 'env' | 'local';
+  disconnected?: boolean; // built-in box removed from the portal (server-side), restorable
 }
 
 export interface PortalConfig {
@@ -98,37 +99,35 @@ export function setSelectedKbId(id: string) {
   window.dispatchEvent(new Event('rp-kb-change'));
 }
 
-// ---- Hidden boxes: built-in (server-configured) boxes can't be deleted from the
-// browser, so "remove" hides them here; restorable. Local boxes are deleted outright.
-const HIDDEN_KEY = 'rp_hidden_kbs';
-export function getHiddenKbIds(): string[] {
-  try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch { return []; }
-}
-export function hideKb(id: string) {
-  const set = new Set(getHiddenKbIds()); set.add(id);
-  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set]));
-  if (_selectedKbId === id) setSelectedKbId(''); else window.dispatchEvent(new Event('rp-kb-change'));
-}
-export function unhideKb(id: string) {
-  localStorage.setItem(HIDDEN_KEY, JSON.stringify(getHiddenKbIds().filter((x) => x !== id)));
-  window.dispatchEvent(new Event('rp-kb-change'));
-}
-
 function allKbs(config: PortalConfig | null): KbInfo[] {
   const env = (config?.kbs || []).map((k) => ({ ...k, source: 'env' as const, aragConfigured: k.aragConfigured || !!getAgentOverride(k.id) }));
   return [...env, ...getLocalKbs().map(localToInfo)];
 }
 
-/** Visible KBs: env (from server) + local (this browser), minus hidden. */
+/** Active KBs: env (from server) + local (this browser), minus disconnected built-ins. */
 export function mergedKbs(config: PortalConfig | null): KbInfo[] {
-  const hidden = new Set(getHiddenKbIds());
-  return allKbs(config).filter((k) => !hidden.has(k.id));
+  return allKbs(config).filter((k) => !k.disconnected);
 }
 
-/** Boxes the user hid — surfaced so they can be restored. */
-export function hiddenKbs(config: PortalConfig | null): KbInfo[] {
-  const hidden = new Set(getHiddenKbIds());
-  return allKbs(config).filter((k) => hidden.has(k.id));
+/** Built-in boxes disconnected from the portal — surfaced so they can be reconnected. */
+export function disconnectedKbs(config: PortalConfig | null): KbInfo[] {
+  return allKbs(config).filter((k) => k.disconnected);
+}
+
+/** Remove a built-in box from the portal for everyone (server-side, reversible). */
+export async function disconnectKb(id: string): Promise<void> {
+  const res = await fetch(`/api/admin/kb/${encodeURIComponent(id)}/disconnect`, { method: 'POST' });
+  if (!res.ok) throw new Error(`disconnect ${id} -> ${res.status}`);
+  if (_selectedKbId === id) setSelectedKbId('');
+  await getConfig(true);
+  window.dispatchEvent(new Event('rp-kb-change'));
+}
+/** Restore a previously disconnected built-in box. */
+export async function reconnectKb(id: string): Promise<void> {
+  const res = await fetch(`/api/admin/kb/${encodeURIComponent(id)}/reconnect`, { method: 'POST' });
+  if (!res.ok) throw new Error(`reconnect ${id} -> ${res.status}`);
+  await getConfig(true);
+  window.dispatchEvent(new Event('rp-kb-change'));
 }
 
 /** Headers telling the proxy which KB to use. Local KBs send their own url+key. */

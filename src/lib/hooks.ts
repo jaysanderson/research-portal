@@ -5,7 +5,14 @@ import { generateProfile, readProfileCache, type KbProfile } from './kbProfile';
 
 export function useConfig() {
   const [config, setConfig] = useState<PortalConfig | null>(null);
-  useEffect(() => { getConfig().then(setConfig).catch(() => setConfig(null)); }, []);
+  useEffect(() => {
+    let active = true;
+    const load = (force = false) => getConfig(force).then((c) => active && setConfig(c)).catch(() => active && setConfig(null));
+    load();
+    const h = () => load(true);
+    window.addEventListener('rp-kb-change', h);
+    return () => { active = false; window.removeEventListener('rp-kb-change', h); };
+  }, []);
   return config;
 }
 

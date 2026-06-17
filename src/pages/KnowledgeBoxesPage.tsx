@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck, Workflow, EyeOff, RotateCcw } from 'lucide-react';
+import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck, Workflow, RotateCcw } from 'lucide-react';
 import { useConfig, useCurrentKb } from '../lib/hooks';
 import {
-  mergedKbs, hiddenKbs, getLocalKbs, removeLocalKb, hideKb, unhideKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
+  mergedKbs, disconnectedKbs, getLocalKbs, removeLocalKb, disconnectKb, reconnectKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
   type KbInfo, type LocalKb,
 } from '../lib/api';
 import { PageHeader } from '../components/PageHeader';
@@ -20,13 +20,20 @@ export default function KnowledgeBoxesPage() {
   useEffect(() => { const h = () => bump((x) => x + 1); window.addEventListener('rp-kb-change', h); return () => window.removeEventListener('rp-kb-change', h); }, []);
 
   const kbs = mergedKbs(config);
-  const hidden = hiddenKbs(config);
-  const removeKb = (kb: KbInfo) => {
+  const disconnected = disconnectedKbs(config);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const removeKb = async (kb: KbInfo) => {
     if (kb.source === 'local') {
       if (confirm(`Remove “${kb.name}”? This deletes it from this browser.`)) removeLocalKb(kb.id);
-    } else if (confirm(`Hide “${kb.name}”? It’s server-configured, so it can’t be deleted from the browser — but you can restore it here anytime.`)) {
-      hideKb(kb.id);
+      return;
     }
+    if (!confirm(`Remove “${kb.name}” from the portal? It disappears for everyone, but its Knowledge Box and data stay intact in Progress — you can reconnect it here anytime.`)) return;
+    setBusyId(kb.id);
+    try { await disconnectKb(kb.id); } catch { alert('Could not remove the box. Please try again.'); } finally { setBusyId(null); }
+  };
+  const restoreKb = async (kb: KbInfo) => {
+    setBusyId(kb.id);
+    try { await reconnectKb(kb.id); } catch { alert('Could not reconnect the box. Please try again.'); } finally { setBusyId(null); }
   };
   const openAdd = () => { setEditing(null); setAddOpen(true); };
   const openEdit = (id: string) => { const local = getLocalKbs().find((k) => k.id === id) || null; setEditing(local); setAddOpen(true); };
@@ -48,7 +55,7 @@ export default function KnowledgeBoxesPage() {
       ) : (
         <div className="space-y-3">
           {kbs.map((kb) => (
-            <KbRow key={kb.id} kb={kb} isCurrent={kb.id === current?.id}
+            <KbRow key={kb.id} kb={kb} isCurrent={kb.id === current?.id} busy={busyId === kb.id}
               onSetActive={() => { setSelectedKbId(kb.id); window.location.assign('/'); }}
               onEdit={() => openEdit(kb.id)}
               onAgent={() => setAgentKb(kb)}
@@ -57,16 +64,19 @@ export default function KnowledgeBoxesPage() {
         </div>
       )}
 
-      {hidden.length > 0 && (
+      {disconnected.length > 0 && (
         <div className="mt-8">
-          <h3 className="t-overline mb-2 text-ink-400">Hidden ({hidden.length})</h3>
+          <h3 className="t-overline mb-2 text-ink-400">Disconnected ({disconnected.length})</h3>
+          <p className="mb-2 text-xs text-ink-400">Removed from the portal but still intact in Progress — reconnect to bring one back.</p>
           <div className="space-y-2">
-            {hidden.map((kb) => (
+            {disconnected.map((kb) => (
               <div key={kb.id} className="flex items-center gap-3 rounded-lg border border-ink-100 bg-ink-50/60 px-4 py-2.5">
                 <Database size={15} className="shrink-0 text-ink-300" />
                 <span className="font-medium text-ink-600">{kb.name}</span>
-                <span className="chip">{kb.source === 'local' ? 'Added by you' : 'Built-in'}</span>
-                <button onClick={() => unhideKb(kb.id)} className="btn-outline btn-sm ml-auto"><RotateCcw size={13} /> Restore</button>
+                <span className="chip">Built-in</span>
+                <button onClick={() => restoreKb(kb)} disabled={busyId === kb.id} className="btn-outline btn-sm ml-auto">
+                  {busyId === kb.id ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />} Reconnect
+                </button>
               </div>
             ))}
           </div>
@@ -75,7 +85,7 @@ export default function KnowledgeBoxesPage() {
 
       <p className="mt-5 flex items-start gap-1.5 text-xs text-ink-400">
         <ShieldCheck size={13} className="mt-0.5 shrink-0" />
-        Built-in boxes are server-configured (keys never leave the server) — removing one hides it for this browser; restore it anytime. Boxes you add are stored in this browser and proxied securely.
+        Built-in boxes are server-configured (keys never leave the server) — removing one disconnects it from the portal for everyone, but its data stays intact in Progress and you can reconnect it anytime. Boxes you add are stored in this browser and proxied securely.
       </p>
 
       <AddKbModal open={addOpen} editing={editing} onClose={() => setAddOpen(false)} />
@@ -84,8 +94,8 @@ export default function KnowledgeBoxesPage() {
   );
 }
 
-function KbRow({ kb, isCurrent, onSetActive, onEdit, onAgent, onRemove }: {
-  kb: KbInfo; isCurrent: boolean; onSetActive: () => void; onEdit: () => void; onAgent: () => void; onRemove: () => void;
+function KbRow({ kb, isCurrent, busy, onSetActive, onEdit, onAgent, onRemove }: {
+  kb: KbInfo; isCurrent: boolean; busy: boolean; onSetActive: () => void; onEdit: () => void; onAgent: () => void; onRemove: () => void;
 }) {
   const [testing, setTesting] = useState(false);
   const [res, setRes] = useState<{ kb?: { ok: boolean; resources?: number; error?: string }; agent?: { ok: boolean; error?: string } } | null>(null);
@@ -125,8 +135,8 @@ function KbRow({ kb, isCurrent, onSetActive, onEdit, onAgent, onRemove }: {
           <button onClick={onAgent} className="btn-outline btn-sm"><Workflow size={13} /> {kb.aragConfigured ? 'Edit agent' : 'Add agent'}</button>
           {!isCurrent && <button onClick={onSetActive} className="btn-outline btn-sm"><Check size={13} /> Set active</button>}
           {kb.source === 'local' && <button onClick={onEdit} className="btn-ghost btn-sm"><Pencil size={13} /> Edit</button>}
-          <button onClick={onRemove} title={kb.source === 'local' ? 'Remove' : 'Hide'} className="btn-ghost btn-sm text-data-clay">
-            {kb.source === 'local' ? <Trash2 size={13} /> : <EyeOff size={13} />}
+          <button onClick={onRemove} disabled={busy} title="Remove" className="btn-ghost btn-sm text-data-clay">
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Remove
           </button>
         </div>
       </div>

@@ -33,6 +33,9 @@ const PORT = process.env.PORT || 8787;
 const GEN_MODEL = process.env.NUCLIA_GENERATIVE_MODEL || '';
 const trimUrl = (u) => (u || '').replace(/\/+$/, '');
 
+// Persisted state dir (a Fly volume when mounted) — survives restarts/redeploys.
+const DATA_DIR = process.env.DATA_DIR || (existsSync('/data') ? '/data' : join(ROOT, '.data'));
+
 // ---- Build the Knowledge Box registry from env ----
 function makeKb({ url, apiKey, readerKey, id, name, fallbackId, fallbackName, aragBase, aragId, aragKey }) {
   const base = trimUrl(url);
@@ -65,6 +68,19 @@ const KBS = [
   }),
 ].filter(Boolean);
 
+// ---- Disconnected built-in boxes: a real, cross-browser "delete" that removes a
+// built-in KB from the portal for everyone (persisted to the volume) WITHOUT
+// destroying the underlying Knowledge Box or its data. Reversible via reconnect.
+const DISCONNECTED_FILE = join(DATA_DIR, 'disconnected.json');
+const disconnected = new Set();
+(function loadDisconnected() {
+  try { JSON.parse(readFileSync(DISCONNECTED_FILE, 'utf8')).forEach((id) => disconnected.add(id)); } catch { /* none yet */ }
+})();
+function saveDisconnected() {
+  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(DISCONNECTED_FILE, JSON.stringify([...disconnected])); }
+  catch (e) { console.error('[research-portal] disconnect persist failed:', String(e)); }
+}
+
 // User-added "bring your own key" boxes arrive as request headers. Restrict the
 // proxy to Progress/Nuclia hosts so it can't be used as an open SSRF relay.
 const ALLOWED_HOST = [/\.rag\.progress\.cloud$/i, /\.dp\.progress\.cloud$/i, /\.nuclia\.cloud$/i, /(^|\.)progress\.cloud$/i];
@@ -84,14 +100,20 @@ function adhocKb(req) {
     arag: ab && aid && akey && isAllowedHost(ab) ? { base: trimUrl(ab), agentId: aid, apiKey: akey } : null,
   };
 }
+const firstActive = () => KBS.find((k) => !disconnected.has(k.id)) || null;
 const getKb = (req) => {
   const ad = adhocKb(req);
   if (ad) return ad; // includes the __forbidden sentinel
   const id = req.headers['x-kb'] || req.query.kb;
-  return KBS.find((k) => k.id === id) || KBS[0] || null;
+  if (id) {
+    if (disconnected.has(id)) return { __disconnected: true };
+    return KBS.find((k) => k.id === id) || firstActive();
+  }
+  return firstActive();
 };
 const kbError = (res, kb) => {
   if (kb?.__forbidden) { res.status(403).json({ detail: 'Knowledge Box host not allowed.' }); return true; }
+  if (kb?.__disconnected) { res.status(410).json({ detail: 'Knowledge Box has been disconnected.' }); return true; }
   if (!kb) { res.status(503).json({ detail: 'No Knowledge Box configured on server.' }); return true; }
   return false;
 };
@@ -146,8 +168,23 @@ app.get('/api/config', async (_req, res) => {
       zone: (() => { try { return new URL(kb.base).host; } catch { return null; } })(),
       connected: !!reach[kb.id]?.ok,
       aragConfigured: !!kb.arag,
+      disconnected: disconnected.has(kb.id),
     })),
   });
+});
+
+// Disconnect / reconnect a built-in box for everyone (persisted to the volume).
+// This removes it from the portal without touching the underlying KB or its data.
+app.post('/api/admin/kb/:id/disconnect', (req, res) => {
+  const { id } = req.params;
+  if (!KBS.some((k) => k.id === id)) return res.status(404).json({ detail: 'Unknown built-in Knowledge Box.' });
+  disconnected.add(id); saveDisconnected();
+  res.json({ ok: true, disconnected: [...disconnected] });
+});
+app.post('/api/admin/kb/:id/reconnect', (req, res) => {
+  const { id } = req.params;
+  disconnected.delete(id); saveDisconnected();
+  res.json({ ok: true, disconnected: [...disconnected] });
 });
 
 // Generic streaming proxy.
@@ -220,6 +257,7 @@ app.use('/api/kb', rawBody, async (req, res) => {
 app.use('/api/agent', rawBody, async (req, res) => {
   const kb = getKb(req);
   if (kb?.__forbidden) return res.status(403).json({ detail: 'Knowledge Box host not allowed.' });
+  if (kb?.__disconnected) return res.status(410).json({ detail: 'Knowledge Box has been disconnected.' });
   // A client-supplied agent (x-kb-arag-*) takes precedence — this lets the UI
   // attach/override a Retrieval Agent on ANY box. Otherwise use the KB's own agent.
   const ab = req.headers['x-kb-arag-url'], aid = req.headers['x-kb-arag-agent'], akey = req.headers['x-kb-arag-key'];
@@ -370,7 +408,6 @@ const profileInflight = new Map(); // kb.base -> Promise (dedupe concurrent firs
 
 // Persist the profile cache to disk (a Fly volume when mounted) so it survives
 // restarts / idle-stops — no cold regeneration after a redeploy.
-const DATA_DIR = process.env.DATA_DIR || (existsSync('/data') ? '/data' : join(ROOT, '.data'));
 const PROFILES_FILE = join(DATA_DIR, 'profiles.json');
 function loadProfiles() {
   try {
