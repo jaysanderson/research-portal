@@ -13,7 +13,7 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -356,6 +356,25 @@ const PROFILE_TTL = 30 * 24 * 60 * 60 * 1000;
 const profileCache = new Map();    // kb.base -> { data, ts }
 const profileInflight = new Map(); // kb.base -> Promise (dedupe concurrent first-hits)
 
+// Persist the profile cache to disk (a Fly volume when mounted) so it survives
+// restarts / idle-stops — no cold regeneration after a redeploy.
+const DATA_DIR = process.env.DATA_DIR || (existsSync('/data') ? '/data' : join(ROOT, '.data'));
+const PROFILES_FILE = join(DATA_DIR, 'profiles.json');
+function loadProfiles() {
+  try {
+    const obj = JSON.parse(readFileSync(PROFILES_FILE, 'utf8'));
+    for (const [k, v] of Object.entries(obj)) profileCache.set(k, v);
+    console.log(`[research-portal] loaded ${profileCache.size} cached profile(s) from ${PROFILES_FILE}`);
+  } catch { /* none yet */ }
+}
+function saveProfiles() {
+  try {
+    mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(PROFILES_FILE, JSON.stringify(Object.fromEntries(profileCache)));
+  } catch (e) { console.error('[research-portal] profile persist failed:', String(e)); }
+}
+loadProfiles();
+
 async function buildProfile(kb) {
   const body = { query: PROFILE_QUERY, features: ['keyword', 'semantic'], answer_json_schema: PROFILE_SCHEMA, show: ['basic'] };
   const r = await fetch(`${kb.base}/ask`, {
@@ -393,6 +412,7 @@ app.get('/api/profile', async (req, res) => {
     if (!profileInflight.has(key)) profileInflight.set(key, buildProfile(kb).finally(() => profileInflight.delete(key)));
     const data = await profileInflight.get(key);
     profileCache.set(key, { data, ts: Date.now() });
+    saveProfiles();
     res.set('Cache-Control', 'public, max-age=86400');
     res.json(data);
   } catch (err) {
