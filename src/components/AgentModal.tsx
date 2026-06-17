@@ -64,10 +64,10 @@ export function AgentModal({ open, kb, onClose }: { open: boolean; kb: KbInfo | 
           <button onClick={onClose} className="text-ink-400 hover:text-ink-700"><X size={18} /></button>
         </div>
         <div className="px-5 py-4">
-          <p className="mb-3 text-sm text-ink-600">Connect a Nuclia Retrieval Agent (its MCP endpoint) to power the Agentic function for this Knowledge Box.</p>
+          <p className="mb-3 text-sm text-ink-600">Each Knowledge Box has one Retrieval Agent (its MCP endpoint) that powers the Agentic function.</p>
           {!isLocal && kb.aragConfigured && !override && (
             <div className="mb-3 rounded-lg border border-ink-200 bg-ink-50 px-3 py-2 text-xs text-ink-500">
-              A server-configured agent is already active for this box. Saving here adds a client override for your browser.
+              This box currently uses a <strong>server-configured</strong> agent (its key stays on the server). Enter details below only if you want to point it at a different agent.
             </div>
           )}
           <label className="field-label">Agent base URL (MCP endpoint)</label>
