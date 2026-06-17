@@ -1,17 +1,19 @@
 import { useEffect } from 'react';
 import { useChat } from '../lib/useChat';
 import { ChatThread } from '../components/chat/ChatThread';
+import { useKbProfile } from '../lib/hooks';
 import { RotateCcw } from 'lucide-react';
 
-const EXAMPLES = [
-  'Which CMS/DXP vendors lead in composable architecture?',
-  'How does Progress Sitefinity compare to Sitecore for .NET teams?',
-  'What do analysts say about headless CMS adoption?',
-  'Compare pricing models across the top DXP vendors.',
+const FALLBACK_EXAMPLES = [
+  'Summarize the main themes in this knowledge base.',
+  'What are the most important findings here?',
+  'Compare the leading approaches discussed.',
 ];
 
 export default function AssistantPage() {
   const { messages, busy, send, stop, reset } = useChat();
+  const { profile } = useKbProfile();
+  const examples = profile?.exampleQuestions?.length ? profile.exampleQuestions : FALLBACK_EXAMPLES;
   // Pick up a query handed off from the command palette.
   useEffect(() => {
     const q = sessionStorage.getItem('rp_prefill');
@@ -28,8 +30,8 @@ export default function AssistantPage() {
         {messages.length > 0 && <button onClick={reset} className="btn-outline btn-sm"><RotateCcw size={14} /> New chat</button>}
       </div>
       <div className="card flex-1 overflow-hidden">
-        <ChatThread messages={messages} busy={busy} onSend={send} onStop={stop} examples={EXAMPLES}
-          placeholder="Ask about the CMS/DXP market…" />
+        <ChatThread messages={messages} busy={busy} onSend={send} onStop={stop} examples={examples}
+          placeholder={profile?.subject ? `Ask about ${profile.subject}…` : 'Ask about the knowledge base…'} />
       </div>
     </div>
   );

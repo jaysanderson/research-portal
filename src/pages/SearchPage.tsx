@@ -6,13 +6,12 @@ import { FacetFilters } from '../components/search/FacetFilters';
 import { AnswerCard } from '../components/search/AnswerCard';
 import { ResultCard } from '../components/search/ResultCard';
 import { EmptyState, ErrorState, SkeletonRows } from '../components/States';
+import { useKbProfile } from '../lib/hooks';
 
 const MODES: { id: RetrievalMode; label: string }[] = [
   { id: 'hybrid', label: 'Hybrid' }, { id: 'semantic', label: 'Semantic' }, { id: 'keyword', label: 'Keyword' },
 ];
-const EXAMPLES = [
-  'composable DXP leaders', 'Sitefinity vs Sitecore', 'headless CMS pricing', 'personalization capabilities',
-];
+const FALLBACK_EXAMPLES = ['key findings', 'comparison', 'best practices', 'recent developments'];
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -23,6 +22,8 @@ export default function SearchPage() {
   const [results, setResults] = useState<FindResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { profile } = useKbProfile();
+  const examples = profile?.topics?.length ? profile.topics : FALLBACK_EXAMPLES;
 
   const run = useCallback(async (q: string, f: string[], m: RetrievalMode) => {
     if (!q.trim()) { setResults([]); return; }
@@ -43,7 +44,7 @@ export default function SearchPage() {
         <div className="relative flex-1">
           <SearchIcon size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
           <input autoFocus value={input} onChange={(e) => setInput(e.target.value)} aria-label="Search the knowledge base"
-            placeholder="Search the CMS/DXP knowledge base…" className="input py-3 pl-10" />
+            placeholder={profile?.subject ? `Search ${profile.subject}…` : 'Search the knowledge base…'} className="input py-3 pl-10" />
         </div>
         <button type="submit" className="btn-primary px-6">Search</button>
       </form>
@@ -67,7 +68,7 @@ export default function SearchPage() {
                 description="Get cited AI answers alongside ranked results. Try one of these:"
                 action={
                   <div className="flex flex-wrap justify-center gap-2">
-                    {EXAMPLES.map((ex) => <button key={ex} onClick={() => { setInput(ex); setQuery(ex); setParams({ q: ex }); }} className="chip-link">{ex}</button>)}
+                    {examples.map((ex) => <button key={ex} onClick={() => { setInput(ex); setQuery(ex); setParams({ q: ex }); }} className="chip-link">{ex}</button>)}
                   </div>
                 } />
             </div>

@@ -11,7 +11,7 @@ import {
 } from '../lib/agentic';
 import { streamAgent } from '../lib/aragAgent';
 import { isRefusal, type Citation } from '../lib/nuclia';
-import { useCurrentKb } from '../lib/hooks';
+import { useCurrentKb, useKbProfile } from '../lib/hooks';
 import { renderMarkdown, toPlainText } from '../lib/markdown';
 import { PageHeader } from '../components/PageHeader';
 import { Citations } from '../components/Citations';
@@ -26,10 +26,10 @@ const STAGES: { id: StageId; label: string; icon: React.ReactNode }[] = [
   { id: 'evaluate', label: 'Validate', icon: <ShieldCheck size={15} /> },
 ];
 
-const EXAMPLES = [
-  'Compare the composable architecture of Sitefinity, Sitecore and Optimizely.',
-  'What do analysts say about the leaders in the DXP market?',
-  'Which vendors are best for a .NET-based enterprise team and why?',
+const FALLBACK_EXAMPLES = [
+  'Summarize the key themes across this knowledge base.',
+  'Compare the leading approaches discussed in the sources.',
+  'What evidence supports the main conclusions here?',
 ];
 
 function strength(score: number): 1 | 2 | 3 {
@@ -40,6 +40,8 @@ function strength(score: number): 1 | 2 | 3 {
 
 export default function AgenticPage() {
   const kb = useCurrentKb();
+  const { profile } = useKbProfile();
+  const examples = profile?.exampleQuestions?.length ? profile.exampleQuestions : FALLBACK_EXAMPLES;
   const aragOn = !!(kb?.aragConfigured && kb?.connected);
   const [input, setInput] = useState('');
   const [running, setRunning] = useState(false);
@@ -129,7 +131,7 @@ export default function AgenticPage() {
       </form>
       {!question && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {EXAMPLES.map((ex) => <button key={ex} onClick={() => { setInput(ex); run(ex); }} className="chip-link">{ex}</button>)}
+          {examples.map((ex) => <button key={ex} onClick={() => { setInput(ex); run(ex); }} className="chip-link">{ex}</button>)}
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getConfig, currentKb, type PortalConfig, type KbInfo } from './api';
 import { getCounters, type Counters } from './nuclia';
+import { generateProfile, readProfileCache, type KbProfile } from './kbProfile';
 
 export function useConfig() {
   const [config, setConfig] = useState<PortalConfig | null>(null);
@@ -18,6 +19,24 @@ export function useCurrentKb(): KbInfo | null {
     return () => window.removeEventListener('rp-kb-change', h);
   }, []);
   return currentKb(config);
+}
+
+/** KB-tailored copy (subject, tagline, example questions, topics). Cached per KB. */
+export function useKbProfile(): { profile: KbProfile | null; loading: boolean } {
+  const kb = useCurrentKb();
+  const [profile, setProfile] = useState<KbProfile | null>(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!kb?.id || !kb.connected) { setProfile(null); return; }
+    const cached = readProfileCache(kb.id);
+    if (cached) { setProfile(cached); return; }
+    let active = true; const ctrl = new AbortController();
+    setProfile(null); setLoading(true);
+    generateProfile(kb.id, { signal: ctrl.signal })
+      .then((p) => active && setProfile(p)).catch(() => {}).finally(() => active && setLoading(false));
+    return () => { active = false; ctrl.abort(); };
+  }, [kb?.id, kb?.connected]);
+  return { profile, loading };
 }
 
 export function useCounters(pollMs = 0) {

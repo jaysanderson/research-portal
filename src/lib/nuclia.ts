@@ -37,7 +37,17 @@ export interface ResourceCard {
   status?: string;
   created?: string;
   modified?: string;
+  thumbnail?: string;
   classifications: Classification[];
+}
+
+/** Build an <img>-able URL for a Nuclia thumbnail path, routed through the proxy.
+ *  Images can't send headers, so we pass the KB via ?kb=. Local (BYO-key) KBs
+ *  can't expose a key in a URL, so they fall back to a generated visual. */
+export function thumbnailUrl(thumbnail: string | undefined, kbId: string): string | null {
+  if (!thumbnail || !kbId || kbId.startsWith('local-')) return null;
+  const rest = thumbnail.replace(/^\/?kb\/[^/]+\//, '');
+  return `/api/kb/${rest}?kb=${encodeURIComponent(kbId)}`;
 }
 
 export interface FindParagraph {
@@ -102,6 +112,7 @@ export async function listCatalog(opts: {
     status: r.metadata?.status,
     created: r.created,
     modified: r.modified,
+    thumbnail: r.thumbnail || undefined,
     classifications: classificationsOf(r),
   }));
   const total = data.fulltext?.total ?? data.total ?? resources.length;

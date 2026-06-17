@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Upload, Search, MessageSquare, Workflow, FileText, Layers, Hash, Tags, ArrowRight } from 'lucide-react';
-import { useCurrentKb, useCounters } from '../lib/hooks';
+import { useCurrentKb, useCounters, useKbProfile } from '../lib/hooks';
 import { getLabelsets } from '../lib/nuclia';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
 
 export default function DashboardPage() {
   const kb = useCurrentKb();
+  const { profile } = useKbProfile();
   const { counters } = useCounters();
   const [taxonomies, setTaxonomies] = useState<number | undefined>(undefined);
 
@@ -17,7 +18,11 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-      <PageHeader title="Research Portal" description="Search, chat with, and reason over your knowledge base." />
+      <PageHeader title="Research Portal"
+        description={profile?.tagline || 'Search, chat with, and reason over your knowledge base.'} />
+      {profile?.subject && (
+        <div className="-mt-4 mb-6"><span className="chip">{profile.subject}</span></div>
+      )}
 
       {kb && !kb.connected && (
         <div className="card mb-6 border-accent-200 bg-accent-50 p-4 text-sm text-accent-700">
@@ -54,6 +59,17 @@ export default function DashboardPage() {
             <ActionCard to="/agentic" icon={<Workflow size={18} strokeWidth={1.75} />} title="Run an agentic query"
               desc="Multi-step retrieval with a transparent pipeline and traces." />
           </div>
+
+          {profile?.topics && profile.topics.length > 0 && (
+            <div className="mt-8">
+              <div className="mb-3 t-overline">Explore {profile.subject || 'this knowledge base'}</div>
+              <div className="flex flex-wrap gap-2">
+                {profile.topics.map((t) => (
+                  <Link key={t} to={`/search?q=${encodeURIComponent(t)}`} className="chip-link">{t}</Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
