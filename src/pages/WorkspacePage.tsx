@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Trash2, Plus, Download, FileDown, Table, Quote, StickyNote, MessageSquare, FileText, Library as LibIcon } from 'lucide-react';
 import { loadWorkspace, addItem, removeItem, clearWorkspace, toMarkdown, toBibtex, toCsv, download, type WorkspaceItem } from '../lib/workspace';
 import { renderMarkdown } from '../lib/markdown';
+import { stripBoilerplate } from '../lib/util';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
 
@@ -58,7 +59,7 @@ export default function WorkspacePage() {
                     <span className="font-semibold text-ink-900">{it.title}</span>
                   </div>
                   {it.question && <p className="mt-1 text-xs italic text-ink-400">{it.question}</p>}
-                  <div className="prose-answer mt-2 text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown(it.content.slice(0, 1200)) }} />
+                  <div className="prose-answer mt-2 text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown((it.type === 'note' ? it.content : stripBoilerplate(it.content)).slice(0, 1200)) }} />
                   {it.resourceId && <Link to={`/knowledge/${it.resourceId}`} className="mt-1 inline-block text-xs text-brand-600 hover:underline">Open resource →</Link>}
                   {it.citations && it.citations.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">{it.citations.map((c, i) => <span key={i} className="chip text-[11px]">{c.title}</span>)}</div>

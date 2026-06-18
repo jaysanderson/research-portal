@@ -80,6 +80,21 @@ function Citations({ items }: { items: Citation[] }) {
   );
 }
 
+function GenSkeleton({ label }: { label: string }) {
+  return (
+    <div className="mt-5" aria-live="polite" aria-busy="true">
+      <div className="flex items-center gap-2 text-sm text-ink-500"><Loader2 size={14} className="animate-spin" /> {label}</div>
+      <div className="mt-4 space-y-2.5">
+        <div className="skeleton h-5 w-2/3 rounded" />
+        <div className="skeleton h-4 w-full rounded" />
+        <div className="skeleton h-4 w-11/12 rounded" />
+        <div className="skeleton h-4 w-4/5 rounded" />
+        <div className="skeleton mt-3 h-24 w-full rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
 function useGenerator<T>(schema: any) {
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState<T | null>(null);
@@ -101,6 +116,7 @@ function MatrixTool() {
     <div className="card p-5">
       <Composer value={q} onChange={setQ} onRun={() => run(q)} busy={busy} placeholder="Which vendors and dimensions to compare…" />
       {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
+      {busy && !out && <GenSkeleton label="Building comparison matrix…" />}
       {out && (
         <div className="mt-5 overflow-x-auto">
           <table className="w-full border-collapse text-sm">
@@ -132,6 +148,7 @@ function BriefingTool() {
     <div className="card p-5">
       <Composer value={q} onChange={setQ} onRun={() => run(q)} busy={busy} placeholder="Briefing topic…" />
       {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
+      {busy && !out && <GenSkeleton label="Writing briefing…" />}
       {out && (
         <article className="mt-5">
           <div className="flex items-start justify-between gap-2">
@@ -166,6 +183,7 @@ function QuizTool() {
     <div className="card p-5">
       <Composer value={q} onChange={setQ} onRun={() => start(q)} busy={busy} placeholder="Assessment topic…" />
       {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
+      {busy && !out && <GenSkeleton label="Generating assessment…" />}
       {out && (
         <div className="mt-5 space-y-5">
           {out.questions.map((qq, qi) => (

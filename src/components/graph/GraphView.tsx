@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { Plus, Minus, Maximize2 } from 'lucide-react';
 import type { GraphData, GraphNode } from '../../lib/graph';
 
 interface SimNode extends GraphNode { x?: number; y?: number; fx?: number | null; fy?: number | null }
 interface SimEdge { source: SimNode; target: SimNode; weight: number }
 
 // Two-dimension graph: primary nodes green, secondary amber (whatever the
-// taxonomies are named for this KB).
+// taxonomies are named for this KB). Labels are shown for the larger nodes and
+// revealed on hover for the rest, so the dense centre stays legible.
 
 export function GraphView({ data, onSelect, selected }: {
   data: GraphData;
@@ -14,6 +16,7 @@ export function GraphView({ data, onSelect, selected }: {
   selected?: string | null;
 }) {
   const ref = useRef<SVGSVGElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   useEffect(() => {
     if (!ref.current) return;
@@ -28,15 +31,23 @@ export function GraphView({ data, onSelect, selected }: {
       .map((e) => ({ source: idMap.get(e.source)!, target: idMap.get(e.target)!, weight: e.weight }))
       .filter((e) => e.source && e.target);
 
+    // adjacency for hover highlighting
+    const neighbors = new Map<string, Set<string>>();
+    nodes.forEach((n) => neighbors.set(n.id, new Set([n.id])));
+    edges.forEach((e) => { neighbors.get(e.source.id)!.add(e.target.id); neighbors.get(e.target.id)!.add(e.source.id); });
+
     const maxW = d3.max(nodes, (n) => n.weight) || 1;
     const r = d3.scaleSqrt().domain([1, maxW]).range([6, 26]);
     const maxE = d3.max(edges, (e) => e.weight) || 1;
     const ew = d3.scaleLinear().domain([1, maxE]).range([0.5, 4]);
+    // Only label the more significant nodes up front; the rest reveal on hover.
+    const labelThreshold = Math.max(13, r(maxW) * 0.52);
+    const showLabel = (d: SimNode) => r(d.weight) >= labelThreshold;
 
     const g = svg.append('g');
-    svg.call(
-      d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.3, 4]).on('zoom', (ev) => g.attr('transform', ev.transform)) as any
-    );
+    const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.3, 4]).on('zoom', (ev) => g.attr('transform', ev.transform));
+    zoomRef.current = zoom;
+    svg.call(zoom);
 
     const sim = d3.forceSimulation(nodes)
       .force('link', d3.forceLink<SimNode, SimEdge>(edges).id((d) => d.id).distance((e) => 120 - ew(e.weight) * 8))
@@ -53,16 +64,32 @@ export function GraphView({ data, onSelect, selected }: {
         .on('drag', (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
         .on('end', (ev, d) => { if (!ev.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }) as any);
 
-    const colorFor = (g: string) => (g === data.primary ? '#1A6A4F' : '#C8861A');
+    const colorFor = (grp: string) => (grp === data.primary ? '#1A6A4F' : '#C8861A');
     node.append('circle')
       .attr('r', (d) => r(d.weight))
       .attr('fill', (d) => colorFor(d.group))
       .attr('stroke', '#fff').attr('stroke-width', 1.5);
 
-    node.append('text').text((d) => d.label)
+    const labels = node.append('text').text((d) => d.label)
       .attr('x', (d) => r(d.weight) + 4).attr('y', 4)
       .attr('font-size', 11).attr('fill', '#334155')
-      .attr('paint-order', 'stroke').attr('stroke', '#fff').attr('stroke-width', 3);
+      .attr('paint-order', 'stroke').attr('stroke', '#fff').attr('stroke-width', 3)
+      .attr('pointer-events', 'none')
+      .attr('opacity', (d) => (showLabel(d) ? 1 : 0));
+
+    // Hover: reveal labels, raise the node, and focus its neighbourhood.
+    node.on('mouseenter', function (_ev, d) {
+      const nb = neighbors.get(d.id)!;
+      node.attr('opacity', (o) => (nb.has(o.id) ? 1 : 0.18));
+      labels.attr('opacity', (o) => (nb.has(o.id) ? 1 : 0)).attr('font-weight', (o) => (o.id === d.id ? 700 : 400));
+      link.attr('stroke-opacity', (e) => (e.source.id === d.id || e.target.id === d.id ? 0.9 : 0.06))
+        .attr('stroke', (e) => (e.source.id === d.id || e.target.id === d.id ? '#94a3b8' : '#cbd5e1'));
+      d3.select(this).raise();
+    }).on('mouseleave', () => {
+      node.attr('opacity', 1);
+      labels.attr('opacity', (o) => (showLabel(o) ? 1 : 0)).attr('font-weight', 400);
+      link.attr('stroke-opacity', 0.5).attr('stroke', '#cbd5e1');
+    });
 
     node.on('click', (_ev, d) => onSelect(d));
 
@@ -82,5 +109,26 @@ export function GraphView({ data, onSelect, selected }: {
       .attr('stroke-width', (d) => (d.id === selected ? 3 : 1.5));
   }, [selected]);
 
-  return <svg ref={ref} className="h-full w-full" />;
+  const zoomBy = (k: number) => { if (ref.current && zoomRef.current) d3.select(ref.current).transition().duration(200).call(zoomRef.current.scaleBy, k); };
+  const reset = () => { if (ref.current && zoomRef.current) d3.select(ref.current).transition().duration(250).call(zoomRef.current.transform, d3.zoomIdentity); };
+
+  return (
+    <div className="relative h-full w-full">
+      <svg ref={ref} className="h-full w-full" />
+      <div className="absolute right-3 top-3 flex flex-col gap-1">
+        <CtrlBtn label="Zoom in" onClick={() => zoomBy(1.4)}><Plus size={15} /></CtrlBtn>
+        <CtrlBtn label="Zoom out" onClick={() => zoomBy(1 / 1.4)}><Minus size={15} /></CtrlBtn>
+        <CtrlBtn label="Reset view" onClick={reset}><Maximize2 size={14} /></CtrlBtn>
+      </div>
+    </div>
+  );
+}
+
+function CtrlBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} aria-label={label} title={label}
+      className="flex h-8 w-8 items-center justify-center rounded-md border border-ink-200 bg-white/90 text-ink-600 shadow-sm hover:bg-ink-50 hover:text-ink-900">
+      {children}
+    </button>
+  );
 }

@@ -19,7 +19,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
-      <PageHeader title="Governance & settings" description="Security posture, access control, and embedding." />
+      <PageHeader title="Governance" description="Security posture, access control, and embedding." />
 
       <Panel icon={<Database size={16} />} title={`Knowledge Boxes (${kbs.length})`}>
         {!config ? (

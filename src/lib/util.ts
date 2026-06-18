@@ -13,12 +13,12 @@ export function friendlyError(e: unknown, fallback = 'Something went wrong. Plea
 
 // Drop obvious web boilerplate (cookie banners, nav chrome) from displayed
 // extracted text. Conservative: only removes short lines that clearly match.
-const BOILERPLATE = /(we use cookies|cookie (policy|settings|preferences)|accept all|only necessary|reject all|skip to (main )?content|subscribe to (our )?newsletter|sign in|log in|©|all rights reserved|back to top|share this|follow us)/i;
+const BOILERPLATE = /(we use cookies|this (website|site) uses cookies|cookie[s]? (policy|settings|preferences|notice|consent|notification)|manage (cookies|preferences|consent)|your privacy|privacy (policy|preferences|center)|terms of (use|service)|accept (all|cookies)|only necessary|reject all|allow all|got it|skip to (main )?content|skip to navigation|toggle (navigation|menu)|main (navigation|menu)|subscribe (to|now)|newsletter|sign in|sign up|log ?in|register|©|copyright|all rights reserved|back to top|share this|follow us|enable javascript|change your preferences|do not sell)/i;
 export function stripBoilerplate(text?: string): string {
   if (!text) return '';
   return text
     .split('\n')
-    .filter((line) => { const t = line.trim(); return !(t.length < 80 && BOILERPLATE.test(t)); })
+    .filter((line) => { const t = line.trim(); return !(t.length < 120 && BOILERPLATE.test(t)); })
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
