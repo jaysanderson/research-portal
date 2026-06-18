@@ -66,6 +66,12 @@ const KBS = [
     id: e.NUCLIA_KB2_ID, name: e.NUCLIA_KB2_NAME, fallbackId: 'member', fallbackName: 'Member Knowledge',
     aragBase: e.NUCLIA_KB2_ARAG_BASE_URL, aragId: e.NUCLIA_KB2_ARAG_AGENT_ID, aragKey: e.NUCLIA_KB2_ARAG_API_KEY,
   }),
+  // Third KB uses NUCLIA_KB3_* var names.
+  makeKb({
+    url: e.NUCLIA_KB3_URL, apiKey: e.NUCLIA_KB3_API_KEY, readerKey: e.NUCLIA_KB3_READER_KEY,
+    id: e.NUCLIA_KB3_ID, name: e.NUCLIA_KB3_NAME, fallbackId: 'competitors', fallbackName: 'Agentic RAG Competitors',
+    aragBase: e.NUCLIA_KB3_ARAG_BASE_URL, aragId: e.NUCLIA_KB3_ARAG_AGENT_ID, aragKey: e.NUCLIA_KB3_ARAG_API_KEY,
+  }),
 ].filter(Boolean);
 
 // ---- Disconnected built-in boxes: a real, cross-browser "delete" that removes a
