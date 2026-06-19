@@ -450,11 +450,17 @@ app.post('/api/theme/plan', express.json({ limit: '64kb' }), async (req, res) =>
   if (!request) return res.status(400).json({ detail: 'A theme request is required.' });
   if (!PPLX_KEY) return res.status(501).json({ detail: 'perplexity-not-configured' }); // client falls back to KB planner
   const sys = 'You help seed a research knowledge base. Given a topic request, restate the task crisply, define scope, ' +
-    'and identify authoritative, currently-relevant web sources to gather resources from (official sites, documentation, ' +
-    'reputable publications, analysts, standards bodies). Prefer durable section/landing pages over one-off articles.';
+    'and pick currently-relevant web sources to gather resources from. CRITICAL: choose sources that match the INTENT, ' +
+    'not just the subject. If the request is about problems, pain points, criticism, limitations, complaints, risks, ' +
+    'comparisons, alternatives or reviews, prefer INDEPENDENT, third-party sources — review platforms (g2.com, ' +
+    'trustradius.com, gartner.com/reviews, capterra.com), community discussion (reddit.com, news.ycombinator.com, ' +
+    'stackoverflow.com), and analyst or journalist coverage — and AVOID a vendor’s own marketing/product/docs pages, ' +
+    'since vendors do not publish their own weaknesses. For neutral how-to, reference or overview topics, official ' +
+    'docs and reputable publications are appropriate. Prefer specific section/listing URLs (e.g. a product’s reviews ' +
+    'page or a subreddit) over bare homepages when they better fit the intent.';
   const user = `Topic request: "${request}".\n\nRespond ONLY with a JSON object, no prose, of this shape:\n` +
     `{"theme":"<2-5 word label>","summary":"<1-2 sentences restating what will be added>","scope":"<short in/out of scope>",` +
-    `"suggestedTopics":["<2-4 short labels>"],"sources":["<6-10 authoritative homepage or section URLs>"]}`;
+    `"suggestedTopics":["<2-4 short labels>"],"sources":["<6-10 URLs chosen to match the intent above>"]}`;
   try {
     const r = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',

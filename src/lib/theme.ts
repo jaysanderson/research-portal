@@ -20,7 +20,7 @@ const PLAN_SCHEMA = {
       theme: { type: 'string', description: 'A concise theme/topic name (2-5 words) to use as the taxonomy label.' },
       summary: { type: 'string', description: 'One or two sentences restating clearly what the user wants to add and what will be retrieved.' },
       scope: { type: 'string', description: 'A short note on what is in scope and what is out of scope.' },
-      sources: { type: 'array', items: { type: 'string' }, description: '5-8 authoritative website domains or URLs (homepages or sitemaps) to retrieve real resources from, e.g. https://example.com.' },
+      sources: { type: 'array', items: { type: 'string' }, description: '5-8 website URLs chosen to MATCH THE INTENT. For problems/pain-points/criticism/comparison/review intent, use independent third-party sources (review sites like g2.com or trustradius.com or gartner.com/reviews, community forums like reddit.com or stackoverflow.com, analyst/journalist coverage) and AVOID vendors’ own marketing/product sites. For neutral how-to/overview topics, official docs and reputable publications are fine.' },
       suggestedTopics: { type: 'array', items: { type: 'string' }, description: '2-4 short related topic labels.' },
     },
     required: ['theme', 'summary', 'sources'],
@@ -55,9 +55,12 @@ export async function planTheme(request: string, opts: { signal?: AbortSignal } 
 
   const query =
     `A user wants to add a new theme/topic to this research portal so it can retrieve fresh resources about it. ` +
-    `Their request: "${request}". Restate the task back clearly, define its scope, and propose authoritative, ` +
-    `real websites (domains or sitemap URLs) to retrieve resources from. Prefer official sites, documentation, ` +
-    `reputable publications and analysts relevant to the subject.`;
+    `Their request: "${request}". Restate the task back clearly, define its scope, and propose real websites to ` +
+    `retrieve resources from — chosen to MATCH THE INTENT. If the request is about problems, pain points, criticism, ` +
+    `limitations, comparisons, alternatives or reviews, prefer INDEPENDENT third-party sources (review platforms, ` +
+    `community forums, analyst/journalist coverage) and AVOID the vendors' own marketing or product sites, since ` +
+    `vendors don't publish their own weaknesses. For neutral how-to or overview topics, official docs and reputable ` +
+    `publications are appropriate.`;
   const { object } = await askStructured<ThemePlan>(query, PLAN_SCHEMA, opts);
   return normalizePlan(object || {}, request);
 }
