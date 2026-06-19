@@ -519,7 +519,7 @@ app.post('/api/integrations/perplexity', express.json({ limit: '32kb' }), async 
   const model = String((req.body || {}).model || '').trim() || 'sonar';
   if (!key) return res.status(400).json({ detail: 'An API key is required.' });
   try {
-    const r = await callPerplexity(key, model, [{ role: 'user', content: 'ping' }], 5);
+    const r = await callPerplexity(key, model, [{ role: 'user', content: 'ping' }], 16);
     if (!r.ok) return res.status(400).json({ detail: 'Perplexity rejected the key.', error: (await r.text()).slice(0, 160) });
   } catch (e) {
     return res.status(502).json({ detail: 'Could not reach Perplexity to validate the key.', error: String(e).slice(0, 140) });
@@ -533,7 +533,7 @@ app.post('/api/integrations/perplexity/test', express.json({ limit: '32kb' }), a
   const model = String((req.body || {}).model || '').trim() || p.model;
   if (!key) return res.status(400).json({ ok: false, detail: 'No Perplexity key configured.' });
   try {
-    const r = await callPerplexity(key, model, [{ role: 'user', content: 'ping' }], 5);
+    const r = await callPerplexity(key, model, [{ role: 'user', content: 'ping' }], 16);
     return res.json(r.ok ? { ok: true } : { ok: false, detail: `Perplexity ${r.status}` });
   } catch (e) { return res.json({ ok: false, detail: String(e).slice(0, 140) }); }
 });
