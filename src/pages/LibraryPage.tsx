@@ -1,15 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, FileText, Link2, File, Library as LibIcon, Film, Music, Image as ImageIcon, FileType } from 'lucide-react';
-import { listCatalog, thumbnailUrl, type ResourceCard } from '../lib/nuclia';
+import { Search as SearchIcon, Loader2, FileText, Link2, File, Library as LibIcon, Film, Music, Image as ImageIcon, FileType, CalendarDays } from 'lucide-react';
+import { listCatalog, thumbnailUrl, type ResourceCard, type CatalogSortField } from '../lib/nuclia';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, SkeletonGrid } from '../components/States';
 import { useCurrentKb, useKbProfile } from '../lib/hooks';
 import { StatusChip } from '../components/StatusChip';
-import { cleanTitle } from '../lib/util';
+import { cleanTitle, formatDate } from '../lib/util';
 
 const PAGE = 24;
+
+const SORTS = [
+  { id: 'created-desc', label: 'Newest added', field: 'created' as CatalogSortField, order: 'desc' as const },
+  { id: 'created-asc', label: 'Oldest added', field: 'created' as CatalogSortField, order: 'asc' as const },
+  { id: 'modified-desc', label: 'Recently updated', field: 'modified' as CatalogSortField, order: 'desc' as const },
+  { id: 'title-asc', label: 'Title A–Z', field: 'title' as CatalogSortField, order: 'asc' as const },
+];
+type SortId = (typeof SORTS)[number]['id'];
 
 export default function LibraryPage() {
   const kb = useCurrentKb();
@@ -22,21 +30,23 @@ export default function LibraryPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [sort, setSort] = useState<SortId>('created-desc');
 
-  const load = useCallback(async (p: number, q: string, f: string[], append: boolean) => {
+  const load = useCallback(async (p: number, q: string, f: string[], append: boolean, sortId: SortId) => {
     setLoading(true); if (!append) setError(false);
+    const s = SORTS.find((x) => x.id === sortId) || SORTS[0];
     try {
-      const res = await listCatalog({ page: p, size: PAGE, query: q || undefined, filters: f.length ? f : undefined });
+      const res = await listCatalog({ page: p, size: PAGE, query: q || undefined, filters: f.length ? f : undefined, sortField: s.field, sortOrder: s.order });
       setTotal(res.total);
       setItems((prev) => append ? [...prev, ...res.resources] : res.resources);
     } catch { if (!append) { setItems([]); setError(true); } } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { setPage(0); load(0, query, filters, false); }, [query, filters, load]);
+  useEffect(() => { setPage(0); load(0, query, filters, false, sort); }, [query, filters, sort, load]);
   // refetch when the KB changes
-  useEffect(() => { const h = () => { setItems([]); setPage(0); load(0, '', [], false); setQuery(''); setFilters([]); }; window.addEventListener('rp-kb-change', h); return () => window.removeEventListener('rp-kb-change', h); }, [load]);
+  useEffect(() => { const h = () => { setItems([]); setPage(0); setQuery(''); setFilters([]); setSort('created-desc'); load(0, '', [], false, 'created-desc'); }; window.addEventListener('rp-kb-change', h); return () => window.removeEventListener('rp-kb-change', h); }, [load]);
 
-  const more = () => { const np = page + 1; setPage(np); load(np, query, filters, true); };
+  const more = () => { const np = page + 1; setPage(np); load(np, query, filters, true, sort); };
   const toggle = (f: string) => setFilters((x) => x.includes(f) ? x.filter((y) => y !== f) : [...x, f]);
   const hasMore = items.length < total;
 
@@ -48,12 +58,20 @@ export default function LibraryPage() {
     <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
       <PageHeader title="Library" description={desc} />
 
-      <form onSubmit={(e) => { e.preventDefault(); setQuery(input); }} className="flex gap-2">
-        <div className="relative flex-1">
+      <form onSubmit={(e) => { e.preventDefault(); setQuery(input); }} className="flex flex-wrap gap-2">
+        <div className="relative min-w-[200px] flex-1">
           <SearchIcon size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
           <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Filter library by title or keyword"
             placeholder="Filter by title or keyword…" className="input py-2.5 pl-10" />
         </div>
+        <label className="relative">
+          <span className="sr-only">Sort resources</span>
+          <CalendarDays size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
+          <select value={sort} onChange={(e) => setSort(e.target.value as SortId)}
+            className="h-full cursor-pointer rounded-lg border border-ink-200 bg-white py-2.5 pl-8 pr-3 text-sm font-medium text-ink-700 outline-none focus:border-brand-400">
+            {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </label>
         <button className="btn-outline">Filter</button>
       </form>
 
@@ -127,7 +145,11 @@ function LibCard({ r, kbId }: { r: ResourceCard; kbId: string }) {
       </div>
       <div className="flex flex-1 flex-col p-3.5">
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-900 group-hover:text-brand-700">{cleanTitle(r.title)}</h3>
-        {r.url && <div className="mt-1 truncate text-xs text-ink-500">{safeHost(r.url)}</div>}
+        <div className="mt-1 flex items-center gap-1.5 truncate text-xs text-ink-500">
+          {r.url && <span className="truncate">{safeHost(r.url)}</span>}
+          {r.url && r.created && <span className="text-ink-300">·</span>}
+          {r.created && <span className="shrink-0">Added {formatDate(r.created)}</span>}
+        </div>
         <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
           {r.classifications.slice(0, 3).map((c, i) => <span key={i} className="chip">{c.label}</span>)}
         </div>

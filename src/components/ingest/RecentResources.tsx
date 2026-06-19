@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Trash2, ExternalLink, RotateCw, FileText, Link2, File } from 'lucide-react';
 import { listCatalog, deleteResource, type ResourceCard } from '../../lib/nuclia';
 import { StatusChip } from '../StatusChip';
-import { cleanTitle } from '../../lib/util';
+import { cleanTitle, timeAgo } from '../../lib/util';
 
 function iconFor(r: ResourceCard) {
   if (r.url) return <Link2 size={15} className="text-ink-400" />;
@@ -16,8 +16,8 @@ export function RecentResources({ refreshKey }: { refreshKey: number }) {
 
   const load = useCallback(async () => {
     try {
-      const { resources } = await listCatalog({ size: 12, page: 0 });
-      resources.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
+      // Always newest-first — no sort option here by design.
+      const { resources } = await listCatalog({ size: 12, page: 0, sortField: 'created', sortOrder: 'desc' });
       setItems(resources);
     } catch { /* ignore */ } finally { setLoading(false); }
   }, []);
@@ -57,6 +57,7 @@ export function RecentResources({ refreshKey }: { refreshKey: number }) {
                 <div className="truncate text-sm font-medium text-ink-800">{cleanTitle(r.title)}</div>
                 {r.url && <div className="truncate text-xs text-ink-400">{r.url}</div>}
               </div>
+              {r.created && <span className="hidden shrink-0 text-xs text-ink-400 sm:inline" title={r.created}>{timeAgo(r.created)}</span>}
               <StatusChip status={r.status} />
               {r.url && (
                 <a href={r.url} target="_blank" rel="noreferrer" className="text-ink-400 hover:text-brand-600"><ExternalLink size={15} /></a>

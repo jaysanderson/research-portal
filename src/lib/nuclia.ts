@@ -94,11 +94,14 @@ function classificationsOf(r: any): Classification[] {
 
 export interface CatalogPage { resources: ResourceCard[]; total: number }
 
+export type CatalogSortField = 'created' | 'modified' | 'title';
 export async function listCatalog(opts: {
   page?: number;
   size?: number;
   query?: string;
   filters?: string[]; // e.g. ['/classification.labels/vendor/Progress Sitefinity']
+  sortField?: CatalogSortField;
+  sortOrder?: 'asc' | 'desc';
 } = {}): Promise<CatalogPage> {
   const query: Record<string, string | number | string[]> = {
     page_number: opts.page ?? 0,
@@ -107,6 +110,7 @@ export async function listCatalog(opts: {
   };
   if (opts.query) query['query'] = opts.query;
   if (opts.filters?.length) query['filters'] = opts.filters;
+  if (opts.sortField) { query['sort_field'] = opts.sortField; query['sort_order'] = opts.sortOrder || 'desc'; }
   const data = await kb<any>('catalog', { query });
   const resObj = data.resources || {};
   const resources: ResourceCard[] = Object.entries(resObj).map(([id, r]: [string, any]) => ({

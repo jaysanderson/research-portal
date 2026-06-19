@@ -8,7 +8,7 @@ import { ChatThread } from '../components/chat/ChatThread';
 import { StatusChip } from '../components/StatusChip';
 import { SaveButton } from '../components/SaveButton';
 import { ErrorState } from '../components/States';
-import { cleanTitle, stripBoilerplate } from '../lib/util';
+import { cleanTitle, stripBoilerplate, formatDate } from '../lib/util';
 
 interface FileField { fieldId: string; contentType: string; filename?: string }
 interface Detail {
@@ -20,6 +20,7 @@ interface Detail {
   thumbnail?: string;
   file?: FileField;
   labels: { labelset: string; label: string }[];
+  created?: string;
 }
 
 function extractText(r: any): string {
@@ -66,6 +67,7 @@ export default function KnowledgeDetailPage() {
         thumbnail: r.thumbnail,
         file: pickFile(r),
         labels: r?.usermetadata?.classifications || [],
+        created: r.created,
       });
     }).catch((e) => setError(String(e))).finally(() => setLoading(false));
   }, [id]);
@@ -90,6 +92,7 @@ export default function KnowledgeDetailPage() {
               <h1 className="t-display">{cleanTitle(detail.title)}</h1>
               <StatusChip status={detail.status} />
             </div>
+            {detail.created && <p className="mt-1 text-xs text-ink-400">Added {formatDate(detail.created)}</p>}
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {detail.labels.map((c, i) => <span key={i} className="chip">{c.label}</span>)}
               <SaveButton item={() => ({ type: 'resource', title: cleanTitle(detail.title), content: detail.summary || detail.text.slice(0, 500), url: detail.url, resourceId: id })} />

@@ -24,6 +24,25 @@ export function stripBoilerplate(text?: string): string {
     .trim();
 }
 
+// Date helpers for "date added" display.
+export function formatDate(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+export function timeAgo(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const s = (Date.now() - d.getTime()) / 1000;
+  if (s < 45) return 'just now';
+  const m = s / 60; if (m < 60) return `${Math.floor(m)}m ago`;
+  const h = m / 60; if (h < 24) return `${Math.floor(h)}h ago`;
+  const days = h / 24; if (days < 30) return `${Math.floor(days)}d ago`;
+  return formatDate(iso);
+}
+
 // Some resources arrive with a raw URL as their title (e.g. a storage link).
 // Render a readable name instead — and avoid exposing storage bucket paths.
 export function cleanTitle(title?: string, fallback = 'Untitled'): string {
