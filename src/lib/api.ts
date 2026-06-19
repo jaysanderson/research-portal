@@ -166,7 +166,14 @@ export async function probeKb(arg: string | Record<string, string>, key?: string
   const headers = typeof arg === 'string' ? { 'x-kb-url': arg, 'x-kb-key': key || '' } : arg;
   try {
     const res = await fetch('/api/kb/counters', { headers });
-    if (!res.ok) return { ok: false, error: `${res.status}: ${(await res.text()).slice(0, 160)}` };
+    if (!res.ok) {
+      const body = (await res.text()).slice(0, 200);
+      if (res.status === 401 || res.status === 403 || /jwt|decod|signature|token|unauthor|forbidden/i.test(body)) {
+        return { ok: false, error: 'The API key was not accepted for this endpoint. Check it’s the full service-account key (no “Bearer” prefix or quotes), and that the endpoint region matches the key.' };
+      }
+      if (res.status === 404) return { ok: false, error: 'Endpoint not found — check the URL ends with /api/v1/kb/<kb-id>.' };
+      return { ok: false, error: `Could not reach this Knowledge Box (${res.status}).` };
+    }
     const d = await res.json();
     return { ok: true, resources: d.resources };
   } catch (e) { return { ok: false, error: String(e).slice(0, 160) }; }

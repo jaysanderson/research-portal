@@ -32,6 +32,9 @@ try {
 const PORT = process.env.PORT || 8787;
 const GEN_MODEL = process.env.NUCLIA_GENERATIVE_MODEL || '';
 const trimUrl = (u) => (u || '').replace(/\/+$/, '');
+// Sanitise a pasted service-account key: drop surrounding quotes/whitespace and a
+// stray "Bearer " prefix (a common copy-paste mistake that yields "JWT decoding error").
+const cleanKey = (k) => String(k || '').trim().replace(/^["']+|["']+$/g, '').replace(/^Bearer\s+/i, '').trim();
 
 // Perplexity (live web) for dynamic source discovery in Add-a-theme. Managed
 // in-app (persisted to the volume) with the PERPLEXITY_API_KEY env as fallback.
@@ -44,16 +47,16 @@ const DATA_DIR = process.env.DATA_DIR || (existsSync('/data') ? '/data' : join(R
 // ---- Build the Knowledge Box registry from env ----
 function makeKb({ url, apiKey, readerKey, id, name, fallbackId, fallbackName, aragBase, aragId, aragKey }) {
   const base = trimUrl(url);
-  const writerKey = apiKey || '';
+  const writerKey = cleanKey(apiKey);
   if (!base || !writerKey) return null;
   const ab = trimUrl(aragBase);
   return {
     id: id || fallbackId,
     name: name || fallbackName,
     base,
-    readerKey: readerKey || writerKey,
+    readerKey: cleanKey(readerKey) || writerKey,
     writerKey,
-    arag: ab && aragId && aragKey ? { base: ab, agentId: aragId, apiKey: aragKey } : null,
+    arag: ab && aragId && aragKey ? { base: ab, agentId: aragId, apiKey: cleanKey(aragKey) } : null,
   };
 }
 
@@ -128,10 +131,10 @@ function adhocKb(req) {
   const url = req.headers['x-kb-url'];
   if (!url) return null;
   if (!isAllowedHost(url)) return { __forbidden: true };
-  const key = req.headers['x-kb-key'] || '';
+  const key = cleanKey(req.headers['x-kb-key']);
   const ab = req.headers['x-kb-arag-url'];
   const aid = req.headers['x-kb-arag-agent'];
-  const akey = req.headers['x-kb-arag-key'];
+  const akey = cleanKey(req.headers['x-kb-arag-key']);
   return {
     id: 'custom', name: 'Custom KB', base: trimUrl(url), readerKey: key, writerKey: key,
     arag: ab && aid && akey && isAllowedHost(ab) ? { base: trimUrl(ab), agentId: aid, apiKey: akey } : null,
@@ -298,7 +301,7 @@ app.use('/api/agent', rawBody, async (req, res) => {
   if (kb?.__disconnected) return res.status(410).json({ detail: 'Knowledge Box has been disconnected.' });
   // A client-supplied agent (x-kb-arag-*) takes precedence — this lets the UI
   // attach/override a Retrieval Agent on ANY box. Otherwise use the KB's own agent.
-  const ab = req.headers['x-kb-arag-url'], aid = req.headers['x-kb-arag-agent'], akey = req.headers['x-kb-arag-key'];
+  const ab = req.headers['x-kb-arag-url'], aid = req.headers['x-kb-arag-agent'], akey = cleanKey(req.headers['x-kb-arag-key']);
   if (ab && !isAllowedHost(ab)) return res.status(403).json({ detail: 'Agent host not allowed.' });
   const agent = ab && aid && akey ? { base: trimUrl(ab), agentId: aid, apiKey: akey } : (kb && kb.arag);
   if (!agent) return res.status(503).json({ detail: 'No Retrieval Agent configured for this Knowledge Box.' });
