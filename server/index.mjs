@@ -723,6 +723,25 @@ app.get('/api/profile', async (req, res) => {
   }
 });
 
+// Set a KB's profile directly (used by the setup wizard for blank KBs that have
+// no content to derive one from). Persisted to the volume like generated profiles.
+app.post('/api/profile/set', express.json({ limit: '32kb' }), (req, res) => {
+  const kb = getKb(req);
+  if (kbError(res, kb)) return;
+  const b = req.body || {};
+  const data = {
+    subject: String(b.subject || '').slice(0, 80),
+    tagline: String(b.tagline || '').slice(0, 160),
+    description: String(b.description || '').slice(0, 300),
+    exampleQuestions: (Array.isArray(b.exampleQuestions) ? b.exampleQuestions : []).slice(0, 5).map(String),
+    topics: (Array.isArray(b.topics) ? b.topics : []).slice(0, 6).map(String),
+  };
+  if (!data.subject) return res.status(400).json({ detail: 'A subject is required.' });
+  profileCache.set(kb.base, { data, ts: Date.now() });
+  saveProfiles();
+  res.json({ ok: true, profile: data });
+});
+
 // Static SPA (production)
 const DIST = join(ROOT, 'dist');
 if (existsSync(DIST)) {

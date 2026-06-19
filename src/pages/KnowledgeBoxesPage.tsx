@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck, Workflow, RotateCcw } from 'lucide-react';
+import { Database, Plus, Pencil, Trash2, Check, FlaskConical, Loader2, CheckCircle2, XCircle, ShieldCheck, Workflow, RotateCcw, Wand2 } from 'lucide-react';
 import { useConfig, useCurrentKb } from '../lib/hooks';
 import {
   mergedKbs, disconnectedKbs, getLocalKbs, removeLocalKb, disconnectKb, reconnectKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
@@ -8,6 +8,7 @@ import {
 import { PageHeader } from '../components/PageHeader';
 import { AddKbModal } from '../components/AddKbModal';
 import { AgentModal } from '../components/AgentModal';
+import { KbSetupModal } from '../components/KbSetupModal';
 
 export default function KnowledgeBoxesPage() {
   const config = useConfig();
@@ -16,6 +17,7 @@ export default function KnowledgeBoxesPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<LocalKb | null>(null);
   const [agentKb, setAgentKb] = useState<KbInfo | null>(null);
+  const [setupKb, setSetupKb] = useState<KbInfo | null>(null);
 
   useEffect(() => { const h = () => bump((x) => x + 1); window.addEventListener('rp-kb-change', h); return () => window.removeEventListener('rp-kb-change', h); }, []);
 
@@ -57,6 +59,7 @@ export default function KnowledgeBoxesPage() {
           {kbs.map((kb) => (
             <KbRow key={kb.id} kb={kb} isCurrent={kb.id === current?.id} busy={busyId === kb.id}
               onSetActive={() => { setSelectedKbId(kb.id); window.location.assign('/'); }}
+              onSetup={() => setSetupKb(kb)}
               onEdit={() => openEdit(kb.id)}
               onAgent={() => setAgentKb(kb)}
               onRemove={() => removeKb(kb)} />
@@ -88,14 +91,16 @@ export default function KnowledgeBoxesPage() {
         Built-in boxes are server-configured (keys never leave the server) — removing one disconnects it from the portal for everyone, but its data stays intact in Progress and you can reconnect it anytime. Boxes you add are stored in this browser and proxied securely.
       </p>
 
-      <AddKbModal open={addOpen} editing={editing} onClose={() => setAddOpen(false)} />
+      <AddKbModal open={addOpen} editing={editing} onClose={() => setAddOpen(false)}
+        onAdded={(id) => { const lk = getLocalKbs().find((k) => k.id === id); if (lk) setSetupKb({ id: lk.id, name: lk.name, kbId: '', zone: null, connected: true, aragConfigured: !!(lk.aragBase && lk.aragAgent && lk.aragKey), source: 'local' }); }} />
       <AgentModal open={!!agentKb} kb={agentKb} onClose={() => setAgentKb(null)} />
+      <KbSetupModal open={!!setupKb} kb={setupKb} onClose={() => setSetupKb(null)} />
     </div>
   );
 }
 
-function KbRow({ kb, isCurrent, busy, onSetActive, onEdit, onAgent, onRemove }: {
-  kb: KbInfo; isCurrent: boolean; busy: boolean; onSetActive: () => void; onEdit: () => void; onAgent: () => void; onRemove: () => void;
+function KbRow({ kb, isCurrent, busy, onSetActive, onSetup, onEdit, onAgent, onRemove }: {
+  kb: KbInfo; isCurrent: boolean; busy: boolean; onSetActive: () => void; onSetup: () => void; onEdit: () => void; onAgent: () => void; onRemove: () => void;
 }) {
   const [testing, setTesting] = useState(false);
   const [res, setRes] = useState<{ kb?: { ok: boolean; resources?: number; error?: string }; agent?: { ok: boolean; error?: string } } | null>(null);
@@ -132,6 +137,7 @@ function KbRow({ kb, isCurrent, busy, onSetActive, onEdit, onAgent, onRemove }: 
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <button onClick={runTest} disabled={testing} className="btn-outline btn-sm">{testing ? <Loader2 size={13} className="animate-spin" /> : <FlaskConical size={13} />} Test</button>
+          <button onClick={onSetup} className="btn-outline btn-sm"><Wand2 size={13} /> Set up</button>
           <button onClick={onAgent} className="btn-outline btn-sm"><Workflow size={13} /> {kb.aragConfigured ? 'Edit agent' : 'Add agent'}</button>
           {!isCurrent && <button onClick={onSetActive} className="btn-outline btn-sm"><Check size={13} /> Set active</button>}
           {kb.source === 'local' && <button onClick={onEdit} className="btn-ghost btn-sm"><Pencil size={13} /> Edit</button>}

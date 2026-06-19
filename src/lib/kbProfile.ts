@@ -34,6 +34,9 @@ function writeProfileCache(kbId: string, data: KbProfile) {
   try { localStorage.setItem(keyFor(kbId), JSON.stringify({ data, ts: Date.now() })); } catch { /* */ }
 }
 
+/** Seed the client cache directly (used after the setup wizard writes a profile). */
+export function setProfileCache(kbId: string, data: KbProfile) { writeProfileCache(kbId, data); }
+
 export async function generateProfile(kbId: string, opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<KbProfile> {
   if (!opts.force) { const c = readProfileCache(kbId); if (c) return c; }
   // Server generates + caches once per KB (shared); kbHeaders() selects the KB.

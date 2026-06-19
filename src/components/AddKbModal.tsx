@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Loader2, CheckCircle2, AlertCircle, Plus, Save, ShieldCheck } from 'lucide-react';
 import { addLocalKb, updateLocalKb, setSelectedKbId, probeKb, probeAgent, type LocalKb } from '../lib/api';
 
-export function AddKbModal({ open, onClose, editing }: { open: boolean; onClose: () => void; editing?: LocalKb | null }) {
+export function AddKbModal({ open, onClose, editing, onAdded }: { open: boolean; onClose: () => void; editing?: LocalKb | null; onAdded?: (kbId: string) => void }) {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [key, setKey] = useState('');
@@ -59,7 +59,13 @@ export function AddKbModal({ open, onClose, editing }: { open: boolean; onClose:
       aragKey: showAgent ? aragKey.trim() || undefined : undefined,
     };
     if (isEdit) { updateLocalKb(editing!.id, patch); setBusy(null); onClose(); }
-    else { const kb = addLocalKb(patch); setSelectedKbId(kb.id); window.location.assign('/'); }
+    else {
+      const kb = addLocalKb(patch);
+      setBusy(null);
+      // Hand off to the setup wizard when the parent wants it; otherwise go home.
+      if (onAdded) { onClose(); onAdded(kb.id); }
+      else { setSelectedKbId(kb.id); window.location.assign('/'); }
+    }
   };
 
   return createPortal((
