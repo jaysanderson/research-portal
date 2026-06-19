@@ -33,10 +33,10 @@ const PORT = process.env.PORT || 8787;
 const GEN_MODEL = process.env.NUCLIA_GENERATIVE_MODEL || '';
 const trimUrl = (u) => (u || '').replace(/\/+$/, '');
 
-// Perplexity (live web) for dynamic source discovery in Add-a-theme. Optional:
-// when unset, the client falls back to the KB's own generative model.
-const PPLX_KEY = process.env.PERPLEXITY_API_KEY || '';
-const PPLX_MODEL = process.env.PERPLEXITY_MODEL || 'sonar';
+// Perplexity (live web) for dynamic source discovery in Add-a-theme. Managed
+// in-app (persisted to the volume) with the PERPLEXITY_API_KEY env as fallback.
+// getPplx() resolves the effective key; the actual store is initialised below
+// once DATA_DIR's integrations file is loaded.
 
 // Persisted state dir (a Fly volume when mounted) — survives restarts/redeploys.
 const DATA_DIR = process.env.DATA_DIR || (existsSync('/data') ? '/data' : join(ROOT, '.data'));
@@ -90,6 +90,32 @@ const disconnected = new Set();
 function saveDisconnected() {
   try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(DISCONNECTED_FILE, JSON.stringify([...disconnected])); }
   catch (e) { console.error('[research-portal] disconnect persist failed:', String(e)); }
+}
+
+// ---- Integrations (volume-backed, manageable in-app) ----
+const INTEGRATIONS_FILE = join(DATA_DIR, 'integrations.json');
+let integrations = {};
+(function loadIntegrations() {
+  try { integrations = JSON.parse(readFileSync(INTEGRATIONS_FILE, 'utf8')) || {}; } catch { integrations = {}; }
+})();
+function saveIntegrations() {
+  try { mkdirSync(DATA_DIR, { recursive: true }); writeFileSync(INTEGRATIONS_FILE, JSON.stringify(integrations)); }
+  catch (e) { console.error('[research-portal] integrations persist failed:', String(e)); }
+}
+// Effective Perplexity config: in-app (volume) takes precedence over env.
+function getPplx() {
+  const v = integrations.perplexity;
+  if (v?.key) return { key: v.key, model: v.model || 'sonar', source: 'app' };
+  if (process.env.PERPLEXITY_API_KEY) return { key: process.env.PERPLEXITY_API_KEY, model: process.env.PERPLEXITY_MODEL || 'sonar', source: 'env' };
+  return { key: '', model: 'sonar', source: null };
+}
+async function callPerplexity(key, model, messages, maxTokens = 900) {
+  return fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, temperature: 0.2, max_tokens: maxTokens, messages }),
+    signal: AbortSignal.timeout(45000),
+  });
 }
 
 // User-added "bring your own key" boxes arrive as request headers. Restrict the
@@ -172,7 +198,7 @@ app.get('/api/config', async (_req, res) => {
   await ensureProbed();
   res.json({
     generativeModel: GEN_MODEL || null,
-    themePlanner: PPLX_KEY ? 'perplexity' : 'kb',
+    themePlanner: getPplx().key ? 'perplexity' : 'kb',
     kbs: KBS.map((kb) => ({
       id: kb.id,
       name: kb.name,
@@ -448,7 +474,8 @@ function mergeSources(modelSources, citationUrls) {
 app.post('/api/theme/plan', express.json({ limit: '64kb' }), async (req, res) => {
   const request = String((req.body || {}).request || '').trim();
   if (!request) return res.status(400).json({ detail: 'A theme request is required.' });
-  if (!PPLX_KEY) return res.status(501).json({ detail: 'perplexity-not-configured' }); // client falls back to KB planner
+  const pplx = getPplx();
+  if (!pplx.key) return res.status(501).json({ detail: 'perplexity-not-configured' }); // client falls back to KB planner
   const sys = 'You help seed a research knowledge base. Given a topic request, restate the task crisply, define scope, ' +
     'and pick currently-relevant web sources to gather resources from. CRITICAL: choose sources that match the INTENT, ' +
     'not just the subject. If the request is about problems, pain points, criticism, limitations, complaints, risks, ' +
@@ -462,13 +489,7 @@ app.post('/api/theme/plan', express.json({ limit: '64kb' }), async (req, res) =>
     `{"theme":"<2-5 word label>","summary":"<1-2 sentences restating what will be added>","scope":"<short in/out of scope>",` +
     `"suggestedTopics":["<2-4 short labels>"],"sources":["<6-10 URLs chosen to match the intent above>"]}`;
   try {
-    const r = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${PPLX_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: PPLX_MODEL, temperature: 0.2, max_tokens: 900,
-        messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
-      signal: AbortSignal.timeout(45000),
-    });
+    const r = await callPerplexity(pplx.key, pplx.model, [{ role: 'system', content: sys }, { role: 'user', content: user }]);
     if (!r.ok) return res.status(502).json({ detail: 'Perplexity request failed', error: (await r.text()).slice(0, 200) });
     const d = await r.json();
     const content = d.choices?.[0]?.message?.content || '';
@@ -486,6 +507,40 @@ app.post('/api/theme/plan', express.json({ limit: '64kb' }), async (req, res) =>
   } catch (err) {
     res.status(502).json({ detail: 'Plan generation failed', error: String(err).slice(0, 160) });
   }
+});
+
+// ---- Integration management (Perplexity), persisted to the volume ----
+app.get('/api/integrations', (_req, res) => {
+  const p = getPplx();
+  res.json({ perplexity: { configured: !!p.key, source: p.source, model: p.model } });
+});
+app.post('/api/integrations/perplexity', express.json({ limit: '32kb' }), async (req, res) => {
+  const key = String((req.body || {}).key || '').trim();
+  const model = String((req.body || {}).model || '').trim() || 'sonar';
+  if (!key) return res.status(400).json({ detail: 'An API key is required.' });
+  try {
+    const r = await callPerplexity(key, model, [{ role: 'user', content: 'ping' }], 5);
+    if (!r.ok) return res.status(400).json({ detail: 'Perplexity rejected the key.', error: (await r.text()).slice(0, 160) });
+  } catch (e) {
+    return res.status(502).json({ detail: 'Could not reach Perplexity to validate the key.', error: String(e).slice(0, 140) });
+  }
+  integrations.perplexity = { key, model }; saveIntegrations();
+  res.json({ ok: true, perplexity: { configured: true, source: 'app', model } });
+});
+app.post('/api/integrations/perplexity/test', express.json({ limit: '32kb' }), async (req, res) => {
+  const p = getPplx();
+  const key = String((req.body || {}).key || '').trim() || p.key;
+  const model = String((req.body || {}).model || '').trim() || p.model;
+  if (!key) return res.status(400).json({ ok: false, detail: 'No Perplexity key configured.' });
+  try {
+    const r = await callPerplexity(key, model, [{ role: 'user', content: 'ping' }], 5);
+    return res.json(r.ok ? { ok: true } : { ok: false, detail: `Perplexity ${r.status}` });
+  } catch (e) { return res.json({ ok: false, detail: String(e).slice(0, 140) }); }
+});
+app.delete('/api/integrations/perplexity', (_req, res) => {
+  delete integrations.perplexity; saveIntegrations();
+  const p = getPplx();
+  res.json({ ok: true, perplexity: { configured: !!p.key, source: p.source, model: p.model } });
 });
 
 app.post('/api/theme/ingest', express.json({ limit: '256kb' }), async (req, res) => {

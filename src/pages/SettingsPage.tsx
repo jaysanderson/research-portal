@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Database, KeyRound, Users, Code2, Copy, Check, Plus, Trash2 } from 'lucide-react';
+import { Database, KeyRound, Users, Code2, Copy, Check, Plus, Trash2, Globe } from 'lucide-react';
 import { useConfig } from '../lib/hooks';
 import { mergedKbs, removeLocalKb } from '../lib/api';
 import { PageHeader } from '../components/PageHeader';
 import { AddKbModal } from '../components/AddKbModal';
+import { PerplexityPanel } from '../components/PerplexityPanel';
 
 export default function SettingsPage() {
   const config = useConfig();
@@ -52,6 +53,10 @@ export default function SettingsPage() {
         </div>
       </Panel>
       <AddKbModal open={addOpen} onClose={() => setAddOpen(false)} />
+
+      <Panel icon={<Globe size={16} />} title="Integrations — Perplexity (live web search)" className="mt-4">
+        <PerplexityPanel />
+      </Panel>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Panel icon={<KeyRound size={16} />} title="Credential security">
