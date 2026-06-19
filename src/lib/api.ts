@@ -15,6 +15,7 @@ export interface KbInfo {
 
 export interface PortalConfig {
   generativeModel: string | null;
+  themePlanner?: 'perplexity' | 'kb'; // source of Add-a-theme source discovery
   kbs: KbInfo[]; // env-configured only
 }
 

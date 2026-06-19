@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2, Sparkles, Plus, Trash2, ArrowLeft, CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
+import { X, Loader2, Sparkles, Plus, Trash2, ArrowLeft, CheckCircle2, AlertCircle, Wand2, Globe } from 'lucide-react';
 import { planTheme, ingestTheme, type ThemePlan } from '../lib/theme';
 import { friendlyError } from '../lib/util';
 import { useConfig, useCurrentKb } from '../lib/hooks';
@@ -89,7 +89,10 @@ export function AddThemeModal({ open, onClose, onAdded }: { open: boolean; onClo
           {/* STEP 1 — describe */}
           {phase === 'describe' && (
             <>
-              <p className="mb-2 text-sm text-ink-600">Describe a theme or topic you want this Knowledge Box to cover. The portal will restate it, then retrieve fresh resources to seed it.</p>
+              <p className="mb-2 text-sm text-ink-600">Describe a theme or topic you want a Knowledge Box to cover. The portal will restate it, find sources, then retrieve fresh resources to seed it.</p>
+              {config?.themePlanner === 'perplexity' && (
+                <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-semibold text-brand-700"><Globe size={12} /> Sources found via live web search</div>
+              )}
               <textarea value={request} onChange={(e) => setRequest(e.target.value)} rows={4} autoFocus
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') describe(); }}
                 placeholder="e.g. Add coverage of AI governance and the EU AI Act for enterprise content teams"

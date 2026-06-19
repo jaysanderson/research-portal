@@ -27,20 +27,39 @@ const PLAN_SCHEMA = {
   },
 };
 
+function normalizePlan(p: Partial<ThemePlan>, request: string): ThemePlan {
+  return {
+    theme: (p?.theme || request).trim().slice(0, 80),
+    summary: (p?.summary || '').trim(),
+    scope: (p?.scope || '').trim(),
+    sources: (p?.sources || []).map((s) => String(s).trim()).filter(Boolean).slice(0, 10),
+    suggestedTopics: (p?.suggestedTopics || []).map((s) => String(s).trim()).filter(Boolean).slice(0, 4),
+  };
+}
+
 export async function planTheme(request: string, opts: { signal?: AbortSignal } = {}): Promise<ThemePlan> {
+  // Prefer the live-web planner (Perplexity, server-side). Fall back to the KB's
+  // own generative model if it isn't configured or the call fails.
+  try {
+    const r = await fetch('/api/theme/plan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request }), signal: opts.signal,
+    });
+    if (r.ok) {
+      const p = await r.json();
+      const plan = normalizePlan(p, request);
+      if (plan.sources.length) return plan;
+    }
+    // 501 (not configured) or empty sources -> fall through to KB planner
+  } catch { /* fall through */ }
+
   const query =
     `A user wants to add a new theme/topic to this research portal so it can retrieve fresh resources about it. ` +
     `Their request: "${request}". Restate the task back clearly, define its scope, and propose authoritative, ` +
     `real websites (domains or sitemap URLs) to retrieve resources from. Prefer official sites, documentation, ` +
     `reputable publications and analysts relevant to the subject.`;
   const { object } = await askStructured<ThemePlan>(query, PLAN_SCHEMA, opts);
-  return {
-    theme: (object?.theme || request).trim().slice(0, 80),
-    summary: (object?.summary || '').trim(),
-    scope: (object?.scope || '').trim(),
-    sources: (object?.sources || []).map((s) => String(s).trim()).filter(Boolean).slice(0, 8),
-    suggestedTopics: (object?.suggestedTopics || []).map((s) => String(s).trim()).filter(Boolean).slice(0, 4),
-  };
+  return normalizePlan(object || {}, request);
 }
 
 export interface ThemeProgress {

@@ -33,6 +33,11 @@ const PORT = process.env.PORT || 8787;
 const GEN_MODEL = process.env.NUCLIA_GENERATIVE_MODEL || '';
 const trimUrl = (u) => (u || '').replace(/\/+$/, '');
 
+// Perplexity (live web) for dynamic source discovery in Add-a-theme. Optional:
+// when unset, the client falls back to the KB's own generative model.
+const PPLX_KEY = process.env.PERPLEXITY_API_KEY || '';
+const PPLX_MODEL = process.env.PERPLEXITY_MODEL || 'sonar';
+
 // Persisted state dir (a Fly volume when mounted) — survives restarts/redeploys.
 const DATA_DIR = process.env.DATA_DIR || (existsSync('/data') ? '/data' : join(ROOT, '.data'));
 
@@ -167,6 +172,7 @@ app.get('/api/config', async (_req, res) => {
   await ensureProbed();
   res.json({
     generativeModel: GEN_MODEL || null,
+    themePlanner: PPLX_KEY ? 'perplexity' : 'kb',
     kbs: KBS.map((kb) => ({
       id: kb.id,
       name: kb.name,
@@ -422,6 +428,59 @@ async function createThemeResource(kb, url, classifications) {
   });
   if (!(r.status === 200 || r.status === 201)) throw new Error(`create ${r.status}`);
 }
+
+// Dynamic source discovery via Perplexity (live web). Falls back client-side to
+// the KB generative model when no Perplexity key is configured.
+function mergeSources(modelSources, citationUrls) {
+  const out = []; const seen = new Set();
+  const add = (u) => {
+    let s = String(u || '').trim(); if (!s) return;
+    if (!/^https?:\/\//i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+    let key; try { key = new URL(s).origin + new URL(s).pathname.replace(/\/$/, ''); } catch { return; }
+    if (seen.has(key)) return; seen.add(key); out.push(s);
+  };
+  // citations first — these are pages Perplexity actually found (live, real)
+  (citationUrls || []).forEach(add);
+  (Array.isArray(modelSources) ? modelSources : []).forEach(add);
+  return out.slice(0, 10);
+}
+
+app.post('/api/theme/plan', express.json({ limit: '64kb' }), async (req, res) => {
+  const request = String((req.body || {}).request || '').trim();
+  if (!request) return res.status(400).json({ detail: 'A theme request is required.' });
+  if (!PPLX_KEY) return res.status(501).json({ detail: 'perplexity-not-configured' }); // client falls back to KB planner
+  const sys = 'You help seed a research knowledge base. Given a topic request, restate the task crisply, define scope, ' +
+    'and identify authoritative, currently-relevant web sources to gather resources from (official sites, documentation, ' +
+    'reputable publications, analysts, standards bodies). Prefer durable section/landing pages over one-off articles.';
+  const user = `Topic request: "${request}".\n\nRespond ONLY with a JSON object, no prose, of this shape:\n` +
+    `{"theme":"<2-5 word label>","summary":"<1-2 sentences restating what will be added>","scope":"<short in/out of scope>",` +
+    `"suggestedTopics":["<2-4 short labels>"],"sources":["<6-10 authoritative homepage or section URLs>"]}`;
+  try {
+    const r = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${PPLX_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: PPLX_MODEL, temperature: 0.2, max_tokens: 900,
+        messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!r.ok) return res.status(502).json({ detail: 'Perplexity request failed', error: (await r.text()).slice(0, 200) });
+    const d = await r.json();
+    const content = d.choices?.[0]?.message?.content || '';
+    const citations = (d.search_results || []).map((s) => s.url).filter(Boolean);
+    if (Array.isArray(d.citations)) citations.push(...d.citations);
+    let obj = {}; try { obj = JSON.parse((content.match(/\{[\s\S]*\}/) || ['{}'])[0]); } catch { /* */ }
+    res.json({
+      theme: obj.theme || request,
+      summary: obj.summary || '',
+      scope: obj.scope || '',
+      suggestedTopics: Array.isArray(obj.suggestedTopics) ? obj.suggestedTopics.slice(0, 4) : [],
+      sources: mergeSources(obj.sources, citations),
+      live: true,
+    });
+  } catch (err) {
+    res.status(502).json({ detail: 'Plan generation failed', error: String(err).slice(0, 160) });
+  }
+});
 
 app.post('/api/theme/ingest', express.json({ limit: '256kb' }), async (req, res) => {
   const kb = getKb(req);
