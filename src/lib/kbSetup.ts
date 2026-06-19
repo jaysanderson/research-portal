@@ -16,11 +16,14 @@ export interface KbSetupPlan {
   graphSecondary?: string;
 }
 
+// NOTE: the LLM's strict function-schema validator requires every object to list
+// ALL its properties in `required` and set `additionalProperties: false`.
 const SETUP_SCHEMA = {
   name: 'kb_setup',
   description: 'A setup plan for a new research knowledge base, derived from a subject description.',
   parameters: {
     type: 'object',
+    additionalProperties: false,
     properties: {
       subject: { type: 'string', description: '2-4 word domain label.' },
       tagline: { type: 'string', description: 'One short hero subtitle (max ~12 words).' },
@@ -32,18 +35,17 @@ const SETUP_SCHEMA = {
         description: '2-3 classification labelsets to organise resources in this domain.',
         items: {
           type: 'object',
+          additionalProperties: false,
           properties: {
             title: { type: 'string', description: 'Human label name, e.g. "Vendor" or "Topic".' },
-            multiple: { type: 'boolean', description: 'Whether a resource can have several values from this set.' },
+            cardinality: { type: 'string', description: 'Either "single" (one value per resource, e.g. a Vendor) or "multiple" (several allowed, e.g. Topics).' },
             labels: { type: 'array', items: { type: 'string' }, description: '4-8 example values for this labelset.' },
           },
-          required: ['title', 'labels'],
+          required: ['title', 'cardinality', 'labels'],
         },
       },
-      graphPrimary: { type: 'string', description: 'Title of the labelset that makes the best primary graph axis.' },
-      graphSecondary: { type: 'string', description: 'Title of the labelset that makes the best secondary graph axis.' },
     },
-    required: ['subject', 'tagline', 'description', 'topics', 'labelsets'],
+    required: ['subject', 'tagline', 'description', 'exampleQuestions', 'topics', 'labelsets'],
   },
 };
 
@@ -64,7 +66,8 @@ export async function planKbSetup(description: string, kbId: string, opts: { sig
   object = object || {};
   const labelsets: SetupLabelset[] = (object.labelsets || []).slice(0, 4).map((l: any) => ({
     id: slug(l.title || ''), title: (l.title || '').trim() || 'Label',
-    multiple: l.multiple !== false, labels: (l.labels || []).map((x: any) => String(x).trim()).filter(Boolean).slice(0, 10),
+    multiple: String(l.cardinality || '').toLowerCase() !== 'single',
+    labels: (l.labels || []).map((x: any) => String(x).trim()).filter(Boolean).slice(0, 10),
   })).filter((l: SetupLabelset) => l.title);
   return {
     subject: (object.subject || description).trim().slice(0, 80),
