@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
-import { Upload, Link2, FileText, CheckCircle2, AlertCircle, Loader2, Globe, Search } from 'lucide-react';
+import { Upload, Link2, FileText, CheckCircle2, AlertCircle, Loader2, Globe, Search, Sparkles, ChevronRight } from 'lucide-react';
 import { createLinkResource, createTextResource, uploadFile, crawlSite, type Classification } from '../lib/nuclia';
 import { RecentResources } from '../components/ingest/RecentResources';
+import { AddThemeModal } from '../components/AddThemeModal';
 import { PageHeader } from '../components/PageHeader';
 
 type Tab = 'upload' | 'link' | 'text' | 'crawl';
@@ -18,11 +19,24 @@ function buildLabels(vendor: string, topics: string): Classification[] {
 export default function IngestPage() {
   const [tab, setTab] = useState<Tab>('upload');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [themeOpen, setThemeOpen] = useState(false);
   const bump = () => setRefreshKey((k) => k + 1);
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
       <PageHeader title="Add content" description="Upload files, paste text, or add links. Everything is indexed and searchable once processed." />
+
+      <button onClick={() => setThemeOpen(true)}
+        className="group mb-5 flex w-full items-center gap-3 rounded-xl border border-brand-200 bg-gradient-to-r from-brand-50/80 to-white p-4 text-left transition-colors hover:border-brand-300">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-700"><Sparkles size={18} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-ink-900">Add a theme</span>
+          <span className="block text-sm text-ink-500">Describe a topic to cover — the portal restates it, then retrieves fresh resources to seed it.</span>
+        </span>
+        <ChevronRight size={18} className="shrink-0 text-ink-300 transition-transform group-hover:translate-x-0.5" />
+      </button>
+
+      <AddThemeModal open={themeOpen} onClose={() => setThemeOpen(false)} onAdded={bump} />
 
       <div className="flex gap-1 rounded-lg border border-ink-200 bg-white p-1">
         <TabBtn active={tab === 'upload'} onClick={() => setTab('upload')} icon={<Upload size={16} />} label="Upload files" />

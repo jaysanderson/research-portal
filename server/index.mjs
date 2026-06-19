@@ -301,47 +301,172 @@ app.post('/api/upload', express.raw({ type: '*/*', limit: '300mb' }), async (req
   }
 });
 
+// Discover URLs from a sitemap or page links (KB-agnostic).
+async function discoverLinks(target, cap = 40) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  let r;
+  try { r = await fetch(target, { signal: ctrl.signal, headers: { 'User-Agent': 'ResearchPortalCrawler/1.0' } }); }
+  finally { clearTimeout(timer); }
+  const ct = r.headers.get('content-type') || '';
+  const text = await r.text();
+  const origin = new URL(target).origin;
+  const decode = (s) => s.replace(/&amp;/g, '&').replace(/&#38;/g, '&').replace(/&quot;/g, '"');
+  const isSitemap = ct.includes('xml') || target.endsWith('.xml') || /<urlset|<sitemapindex/.test(text);
+  let links = [];
+  if (isSitemap) {
+    links = [...text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => decode(m[1]));
+    // one level of sitemap-index expansion
+    if (/<sitemapindex/i.test(text)) {
+      const children = links.filter((l) => /\.xml/i.test(l)).slice(0, 12);
+      links = [];
+      for (const c of children) {
+        try {
+          const cr = await fetch(c, { headers: { 'User-Agent': 'ResearchPortalCrawler/1.0' }, signal: AbortSignal.timeout(10000) });
+          const ctext = await cr.text();
+          links.push(...[...ctext.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => decode(m[1])));
+        } catch { /* skip child */ }
+        if (links.length >= cap * 3) break;
+      }
+    }
+  } else {
+    const hrefs = [...text.matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)].map((m) => decode(m[1]));
+    links = hrefs
+      .map((h) => { try { return new URL(h, target).href; } catch { return null; } })
+      .filter((h) => h && h.startsWith('http'))
+      .filter((h) => new URL(h).origin === origin)
+      .filter((h) => !/[?]/.test(h))
+      .filter((h) => !/\/(w|wp-json|cdn-cgi|load\.php|api\.php|rest\.php|static|assets)\//i.test(h))
+      .filter((h) => !/\/(Special:|Talk:|Help:|Category:|File:|Template:|Portal:)/i.test(h));
+  }
+  const seen = new Set();
+  const out = [];
+  for (const l of links) {
+    const clean = l.split('#')[0];
+    if (seen.has(clean)) continue;
+    if (/\.(png|jpe?g|gif|svg|css|js|ico|woff2?|ttf|mp4|zip)(\?|$)/i.test(clean)) continue;
+    seen.add(clean);
+    out.push(clean);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 // Crawl helper (KB-agnostic): discover URLs from a sitemap or page links.
 app.get('/api/crawl', async (req, res) => {
   const target = String(req.query.url || '');
   if (!/^https?:\/\//.test(target)) return res.status(400).json({ detail: 'Provide a valid http(s) url.' });
   const cap = Math.min(Number(req.query.limit) || 40, 100);
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
-    const r = await fetch(target, { signal: ctrl.signal, headers: { 'User-Agent': 'ResearchPortalCrawler/1.0' } });
-    clearTimeout(timer);
-    const ct = r.headers.get('content-type') || '';
-    const text = await r.text();
-    const origin = new URL(target).origin;
-    const decode = (s) => s.replace(/&amp;/g, '&').replace(/&#38;/g, '&').replace(/&quot;/g, '"');
-    const isSitemap = ct.includes('xml') || target.endsWith('.xml') || /<urlset|<sitemapindex/.test(text);
-    let links = [];
-    if (isSitemap) {
-      links = [...text.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => decode(m[1]));
-    } else {
-      const hrefs = [...text.matchAll(/href\s*=\s*["']([^"'#]+)["']/gi)].map((m) => decode(m[1]));
-      links = hrefs
-        .map((h) => { try { return new URL(h, target).href; } catch { return null; } })
-        .filter((h) => h && h.startsWith('http'))
-        .filter((h) => new URL(h).origin === origin)
-        .filter((h) => !/[?]/.test(h))
-        .filter((h) => !/\/(w|wp-json|cdn-cgi|load\.php|api\.php|rest\.php|static|assets)\//i.test(h))
-        .filter((h) => !/\/(Special:|Talk:|Help:|Category:|File:|Template:|Portal:)/i.test(h));
-    }
-    const seen = new Set();
-    const out = [];
-    for (const l of links) {
-      const clean = l.split('#')[0];
-      if (seen.has(clean)) continue;
-      if (/\.(png|jpe?g|gif|svg|css|js|ico|woff2?|ttf|mp4|zip)(\?|$)/i.test(clean)) continue;
-      seen.add(clean);
-      out.push(clean);
-      if (out.length >= cap) break;
-    }
+    const out = await discoverLinks(target, cap);
     res.json({ source: target, count: out.length, links: out });
   } catch (err) {
     res.status(502).json({ detail: 'Crawl failed', error: String(err).slice(0, 200) });
+  }
+});
+
+// ---- Add a theme/topic: discover -> verify -> ingest, streaming progress ----
+async function discoverForSource(src, cap) {
+  let s = String(src || '').trim();
+  if (!/^https?:\/\//.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+  let origin; try { origin = new URL(s).origin; } catch { return []; }
+  let links = [];
+  // sitemap first (richer), then fall back to crawling the page itself
+  for (const sm of [origin + '/sitemap.xml', origin + '/sitemap_index.xml']) {
+    try { const l = await discoverLinks(sm, cap); if (l.length) { links = l; break; } } catch { /* */ }
+  }
+  if (links.length < 5) {
+    try { links = links.concat(await discoverLinks(s, cap)); } catch { /* */ }
+  }
+  // de-dupe and cap
+  const seen = new Set(); const out = [];
+  for (const u of links) { const k = u.split('#')[0]; if (seen.has(k)) continue; seen.add(k); out.push(u); if (out.length >= cap) break; }
+  return out;
+}
+
+async function filterReachable(urls, cap) {
+  const out = []; let i = 0;
+  const worker = async () => {
+    while (i < urls.length && out.length < cap) {
+      const u = urls[i++];
+      const ok = async (method, t) => {
+        try { const r = await fetch(u, { method, redirect: 'follow', signal: AbortSignal.timeout(t), headers: { 'User-Agent': 'ResearchPortalBot/1.0' } });
+          return r.ok || [401, 403, 405, 429, 999].includes(r.status); } catch { return false; }
+      };
+      if (await ok('HEAD', 7000) || await ok('GET', 9000)) out.push(u);
+    }
+  };
+  await Promise.all(Array.from({ length: 8 }, worker));
+  return out;
+}
+
+async function ensureLabelset(kb, id, title) {
+  try {
+    const r = await fetch(`${kb.base}/labelsets`, { headers: { 'X-NUCLIA-SERVICEACCOUNT': `Bearer ${kb.readerKey}` } });
+    const d = await r.json();
+    if ((d.labelsets || {})[id]) return;
+  } catch { /* fall through to create */ }
+  await fetch(`${kb.base}/labelset/${id}`, {
+    method: 'POST',
+    headers: { 'X-NUCLIA-SERVICEACCOUNT': `Bearer ${kb.writerKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: title || id, color: '#10b981', multiple: true, kind: ['RESOURCES'] }),
+  });
+}
+
+async function createThemeResource(kb, url, classifications) {
+  const body = { title: url, icon: 'application/stf-link', origin: { url }, links: { link: { uri: url } }, usermetadata: { classifications } };
+  const r = await fetch(`${kb.base}/resources`, {
+    method: 'POST',
+    headers: { 'X-NUCLIA-SERVICEACCOUNT': `Bearer ${kb.writerKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!(r.status === 200 || r.status === 201)) throw new Error(`create ${r.status}`);
+}
+
+app.post('/api/theme/ingest', express.json({ limit: '256kb' }), async (req, res) => {
+  const kb = getKb(req);
+  if (kbError(res, kb)) return;
+  const { label, sources = [], count = 25, labelset = 'topic', topics = [] } = req.body || {};
+  const theme = String(label || '').trim();
+  if (!theme || !Array.isArray(sources) || !sources.length) {
+    return res.status(400).json({ detail: 'A theme label and at least one source are required.' });
+  }
+  const cap = Math.min(Math.max(Number(count) || 25, 1), 60);
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  res.setHeader('Cache-Control', 'no-cache');
+  const send = (o) => { res.write(JSON.stringify(o) + '\n'); if (typeof res.flush === 'function') res.flush(); };
+  try {
+    send({ stage: 'prepare', message: 'Preparing taxonomy…' });
+    await ensureLabelset(kb, labelset, labelset === 'topic' ? 'Topic' : theme);
+
+    send({ stage: 'discover', message: `Searching ${sources.length} source${sources.length > 1 ? 's' : ''}…` });
+    const perSource = Math.max(6, Math.ceil((cap * 2) / sources.length));
+    const seen = new Set(); const found = [];
+    for (const s of sources.slice(0, 12)) {
+      let urls = [];
+      try { urls = await discoverForSource(s, perSource); } catch { /* */ }
+      for (const u of urls) { const k = u.split('#')[0].replace(/\/$/, ''); if (seen.has(k)) continue; seen.add(k); found.push(u); }
+      send({ stage: 'discover', message: `Found ${found.length} candidate links…`, found: found.length });
+    }
+    if (!found.length) { send({ stage: 'error', message: 'No resources could be found from those sources. Try different or broader sources.' }); return res.end(); }
+
+    send({ stage: 'verify', message: `Checking ${found.length} links…` });
+    const alive = await filterReachable(found, cap * 2);
+    const chosen = alive.slice(0, cap);
+    if (!chosen.length) { send({ stage: 'error', message: 'None of the discovered links were reachable.' }); return res.end(); }
+
+    const cls = [{ labelset, label: theme }, ...(Array.isArray(topics) ? topics : []).slice(0, 3).map((t) => ({ labelset, label: String(t) }))];
+    send({ stage: 'ingest', message: `Adding ${chosen.length} resources…`, total: chosen.length, created: 0 });
+    let created = 0;
+    for (const u of chosen) {
+      try { await createThemeResource(kb, u, cls); created++; } catch { /* skip individual failures */ }
+      if (created % 3 === 0 || created === chosen.length) send({ stage: 'ingest', message: `Added ${created}/${chosen.length}`, total: chosen.length, created });
+    }
+    send({ stage: 'done', created, label: theme });
+    res.end();
+  } catch (err) {
+    send({ stage: 'error', message: String(err).slice(0, 160) });
+    res.end();
   }
 });
 
