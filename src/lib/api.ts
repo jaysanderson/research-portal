@@ -218,11 +218,12 @@ export async function kb<T = unknown>(
   return (ct.includes('application/json') ? res.json() : res.text()) as Promise<T>;
 }
 
-/** Streaming NDJSON request (used by /ask and /agent). */
-export async function* streamNdjson(url: string, init: RequestInit): AsyncGenerator<Record<string, unknown>> {
+/** Streaming NDJSON request (used by /ask and /agent). Pass kbHdrs to route to a
+ *  specific KB instead of the currently-selected one. */
+export async function* streamNdjson(url: string, init: RequestInit, kbHdrs?: Record<string, string>): AsyncGenerator<Record<string, unknown>> {
   const res = await fetch(url, {
     ...init,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...kbHeaders(), ...(init.headers || {}) },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson', ...(kbHdrs ?? kbHeaders()), ...(init.headers || {}) },
   });
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => '');

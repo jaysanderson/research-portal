@@ -1,7 +1,7 @@
 // Add-a-theme: turn a free-text request into a plan (AI redescription + sources),
 // then discover/verify/ingest resources for it via the streaming server endpoint.
 import { askStructured } from './nuclia';
-import { streamNdjson } from './api';
+import { streamNdjson, headersForKb } from './api';
 
 export interface ThemePlan {
   theme: string;        // concise label
@@ -53,9 +53,11 @@ export interface ThemeProgress {
 }
 
 export async function* ingestTheme(input: {
-  label: string; sources: string[]; count: number; labelset?: string; topics?: string[];
+  label: string; sources: string[]; count: number; labelset?: string; topics?: string[]; kbId?: string;
 }): AsyncGenerator<ThemeProgress> {
-  for await (const o of streamNdjson('/api/theme/ingest', { method: 'POST', body: JSON.stringify(input) })) {
+  const { kbId, ...body } = input;
+  const kbHdrs = kbId ? headersForKb({ id: kbId }) : undefined;
+  for await (const o of streamNdjson('/api/theme/ingest', { method: 'POST', body: JSON.stringify(body) }, kbHdrs)) {
     yield o as unknown as ThemeProgress;
   }
 }

@@ -3,15 +3,21 @@ import { createPortal } from 'react-dom';
 import { X, Loader2, Sparkles, Plus, Trash2, ArrowLeft, CheckCircle2, AlertCircle, Wand2 } from 'lucide-react';
 import { planTheme, ingestTheme, type ThemePlan } from '../lib/theme';
 import { friendlyError } from '../lib/util';
+import { useConfig, useCurrentKb } from '../lib/hooks';
+import { mergedKbs } from '../lib/api';
 
 type Phase = 'describe' | 'review' | 'running' | 'done';
 const COUNTS = [10, 25, 50];
 
 export function AddThemeModal({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded?: () => void }) {
+  const config = useConfig();
+  const current = useCurrentKb();
+  const kbs = mergedKbs(config).filter((k) => k.connected);
   const [phase, setPhase] = useState<Phase>('describe');
   const [request, setRequest] = useState('');
   const [planning, setPlanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [targetKb, setTargetKb] = useState('');
 
   const [theme, setTheme] = useState('');
   const [summary, setSummary] = useState('');
@@ -31,6 +37,8 @@ export function AddThemeModal({ open, onClose, onAdded }: { open: boolean; onClo
     setPhase('describe'); setRequest(''); setError(null); setPlanning(false);
     setTheme(''); setSummary(''); setScope(''); setSources([]); setTopics([]); setNewSource(''); setCount(25);
     setProgress([]); setCreated(0); setTotal(0);
+    setTargetKb(current?.id || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open) return null;
@@ -57,7 +65,7 @@ export function AddThemeModal({ open, onClose, onAdded }: { open: boolean; onClo
     if (!theme.trim() || !sources.length) return;
     setPhase('running'); setError(null); setProgress([]); setCreated(0); setTotal(0);
     try {
-      for await (const ev of ingestTheme({ label: theme.trim(), sources, count, topics })) {
+      for await (const ev of ingestTheme({ label: theme.trim(), sources, count, topics, kbId: targetKb || undefined })) {
         if (ev.stage === 'error') { setError(ev.message || 'Something went wrong.'); return; }
         if (typeof ev.total === 'number') setTotal(ev.total);
         if (typeof ev.created === 'number') setCreated(ev.created);
@@ -119,6 +127,12 @@ export function AddThemeModal({ open, onClose, onAdded }: { open: boolean; onClo
                 </div>
               </div>
 
+              <label className="field-label mt-4">Add to which Knowledge Box?</label>
+              <select value={targetKb} onChange={(e) => setTargetKb(e.target.value)} className="input">
+                {kbs.map((k) => <option key={k.id} value={k.id}>{k.name}{k.id === current?.id ? ' (current)' : ''}</option>)}
+              </select>
+              <p className="mt-1 text-[11px] text-ink-400">Pick any connected box — including a blank one you just connected, to seed it from scratch. To use a brand-new box, add it first in <span className="font-medium">Knowledge Boxes</span>.</p>
+
               <label className="field-label mt-4">How many resources to retrieve initially?</label>
               <div className="mt-1 flex gap-2">
                 {COUNTS.map((c) => (
@@ -161,7 +175,7 @@ export function AddThemeModal({ open, onClose, onAdded }: { open: boolean; onClo
           {phase === 'done' && (
             <div className="py-4 text-center">
               <CheckCircle2 size={34} className="mx-auto text-brand-600" />
-              <p className="mt-3 text-sm text-ink-700"><span className="font-semibold">{created}</span> resources added to <span className="font-semibold">“{theme}”</span>.</p>
+              <p className="mt-3 text-sm text-ink-700"><span className="font-semibold">{created}</span> resources added to <span className="font-semibold">“{theme}”</span>{(() => { const n = kbs.find((k) => k.id === targetKb)?.name; return n ? <> in <span className="font-semibold">{n}</span></> : null; })()}.</p>
               <p className="mt-1 text-xs text-ink-400">They’re indexing now — content becomes searchable over the next few minutes.</p>
             </div>
           )}
