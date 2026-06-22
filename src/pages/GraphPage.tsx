@@ -54,8 +54,13 @@ export default function GraphPage() {
         description="Relationship graph from this Knowledge Box’s classifications — node size = resource count, edges = co-occurrence."
         actions={enoughDims ? (
           <div className="flex items-center gap-2">
-            <span className="t-overline mr-1">{primaryTitle} ↔</span>
-            <select value={secondary} onChange={(e) => setSecondary(e.target.value)} className="rounded-md border border-ink-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500">
+            <select aria-label="Primary axis" value={primary}
+              onChange={(e) => { const np = e.target.value; setPrimary(np); if (np === secondary) { const alt = dims.find((d) => d.id !== np); if (alt) setSecondary(alt.id); } }}
+              className="rounded-md border border-ink-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500">
+              {dims.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
+            </select>
+            <span className="text-ink-400">↔</span>
+            <select aria-label="Secondary axis" value={secondary} onChange={(e) => setSecondary(e.target.value)} className="rounded-md border border-ink-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500">
               {dims.filter((d) => d.id !== primary).map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
             </select>
           </div>
