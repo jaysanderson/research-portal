@@ -16,6 +16,7 @@ const PLAN_SCHEMA = {
   description: 'A plan for adding a new research theme/topic to a knowledge base.',
   parameters: {
     type: 'object',
+    additionalProperties: false,
     properties: {
       theme: { type: 'string', description: 'A concise theme/topic name (2-5 words) to use as the taxonomy label.' },
       summary: { type: 'string', description: 'One or two sentences restating clearly what the user wants to add and what will be retrieved.' },
@@ -23,7 +24,7 @@ const PLAN_SCHEMA = {
       sources: { type: 'array', items: { type: 'string' }, description: '5-8 website URLs chosen to MATCH THE INTENT. For problems/pain-points/criticism/comparison/review intent, use independent third-party sources (review sites like g2.com or trustradius.com or gartner.com/reviews, community forums like reddit.com or stackoverflow.com, analyst/journalist coverage) and AVOID vendors’ own marketing/product sites. For neutral how-to/overview topics, official docs and reputable publications are fine.' },
       suggestedTopics: { type: 'array', items: { type: 'string' }, description: '2-4 short related topic labels.' },
     },
-    required: ['theme', 'summary', 'sources'],
+    required: ['theme', 'summary', 'scope', 'sources', 'suggestedTopics'],
   },
 };
 

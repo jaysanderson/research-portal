@@ -646,6 +646,7 @@ const PROFILE_SCHEMA = {
   description: 'A profile of this knowledge base used to tailor a research portal UI.',
   parameters: {
     type: 'object',
+    additionalProperties: false,
     properties: {
       subject: { type: 'string', description: 'A 2-4 word domain label.' },
       tagline: { type: 'string', description: 'One short sentence (max ~12 words) for a hero subtitle.' },
