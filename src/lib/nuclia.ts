@@ -56,7 +56,11 @@ export async function thumbnailBlobUrl(thumbnail: string): Promise<string | null
   const rest = thumbnail.replace(/^\/?kb\/[^/]+\//, '');
   const res = await fetch(`/api/kb/${rest}`, { headers: kbHeaders() });
   if (!res.ok) return null;
-  return URL.createObjectURL(await res.blob());
+  // Nuclia serves extracted thumbnails as octet-stream; coerce to an image type
+  // so <img src=blob:…> decodes reliably.
+  const ct = res.headers.get('content-type') || '';
+  const type = ct.startsWith('image/') ? ct : 'image/jpeg';
+  return URL.createObjectURL(new Blob([await res.arrayBuffer()], { type }));
 }
 
 /** Inline-streamable URL for a resource's file field (video/PDF/etc.), proxied.
