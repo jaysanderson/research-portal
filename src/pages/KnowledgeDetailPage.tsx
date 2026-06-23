@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Download } from 'lucide-react';
-import { getResource, resourceFileUrl, thumbnailUrl } from '../lib/nuclia';
+import { getResource, resourceFileUrl, resourceFileBlobUrl, thumbnailUrl } from '../lib/nuclia';
 import { useChat } from '../lib/useChat';
 import { useCurrentKb } from '../lib/hooks';
 import { ChatThread } from '../components/chat/ChatThread';
@@ -9,6 +9,7 @@ import { StatusChip } from '../components/StatusChip';
 import { SaveButton } from '../components/SaveButton';
 import { ErrorState } from '../components/States';
 import { cleanTitle, stripBoilerplate, formatDate } from '../lib/util';
+import { renderMarkdown } from '../lib/markdown';
 
 interface FileField { fieldId: string; contentType: string; filename?: string }
 interface Detail {
@@ -72,9 +73,24 @@ export default function KnowledgeDetailPage() {
     }).catch((e) => setError(String(e))).finally(() => setLoading(false));
   }, [id]);
 
-  const mediaUrl = detail?.file && id && kb?.id ? resourceFileUrl(id, detail.file.fieldId, kb.id) : null;
-  const thumbUrl = detail?.thumbnail && kb?.id ? thumbnailUrl(detail.thumbnail, kb.id) : null;
+  const directUrl = detail?.file && id && kb?.id ? resourceFileUrl(id, detail.file.fieldId, kb.id) : null;
+  const isLocal = !!kb?.id?.startsWith('local-');
   const ct = detail?.file?.contentType || '';
+  const embeddable = /^(video|audio|image)\//.test(ct) || ct === 'application/pdf';
+
+  // BYO (local) KBs can't pass their key in a media src — fetch the bytes via the
+  // proxy (header-auth) into an object URL so PDF/video/image still render inline.
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!(detail?.file && id && isLocal && embeddable)) { setBlobUrl(null); return; }
+    let url: string | null = null; let active = true;
+    resourceFileBlobUrl(id, detail.file.fieldId).then((u) => { if (active) { url = u; setBlobUrl(u); } else if (u) URL.revokeObjectURL(u); }).catch(() => {});
+    return () => { active = false; if (url) URL.revokeObjectURL(url); };
+  }, [id, isLocal, embeddable, detail?.file?.fieldId]);
+
+  const mediaUrl = isLocal ? blobUrl : directUrl;
+  const mediaResolving = isLocal && embeddable && !!detail?.file && !blobUrl;
+  const thumbUrl = detail?.thumbnail && kb?.id ? thumbnailUrl(detail.thumbnail, kb.id) : null;
   const isMedia = mediaUrl && /^(video|audio|image)\//.test(ct);
   const isPdf = mediaUrl && ct === 'application/pdf';
 
@@ -104,6 +120,7 @@ export default function KnowledgeDetailPage() {
             </div>
 
             {/* Media: stream video/audio, render PDF/image inline */}
+            {mediaResolving && <div className="skeleton mt-5 h-72 w-full rounded-xl" />}
             {isMedia && ct.startsWith('video') && (
               <video className="mt-5 max-h-[72vh] w-full rounded-xl bg-black" src={mediaUrl!} poster={thumbUrl || undefined} controls preload="metadata" />
             )}
@@ -130,12 +147,12 @@ export default function KnowledgeDetailPage() {
               </a>
             )}
 
-            {/* File that can't be embedded (or local KB) — offer a download/open */}
-            {detail.file && !isMedia && !isPdf && mediaUrl && (
-              <a href={mediaUrl} target="_blank" rel="noreferrer" className="btn-outline mt-5"><Download size={15} /> Open {detail.file.filename || 'file'}</a>
+            {/* Non-embeddable file (e.g. .zip, .docx) — offer a download/open */}
+            {detail.file && !embeddable && directUrl && (
+              <a href={directUrl} target="_blank" rel="noreferrer" className="btn-outline mt-5"><Download size={15} /> Open {detail.file.filename || 'file'}</a>
             )}
-            {detail.file && !mediaUrl && (
-              <p className="mt-5 text-sm text-ink-500">Inline preview isn’t available for this Knowledge Box. {detail.url && <a className="text-brand-700 underline" href={detail.url} target="_blank" rel="noreferrer">Open source</a>}</p>
+            {detail.file && !embeddable && !directUrl && (
+              <p className="mt-5 text-sm text-ink-500">This file type can’t be previewed inline. {detail.url && <a className="text-brand-700 underline" href={detail.url} target="_blank" rel="noreferrer">Open source</a>}</p>
             )}
 
             {detail.summary && (
@@ -148,7 +165,8 @@ export default function KnowledgeDetailPage() {
             <details className="card mt-4 p-5" open={!detail.file}>
               <summary className="t-overline cursor-pointer select-none">{detail.file || detail.url ? 'Extracted text' : 'Content'}</summary>
               {detail.text ? (
-                <div className="mt-3 max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-ink-700">{stripBoilerplate(detail.text)}</div>
+                <div className="prose-answer mt-3 max-h-[60vh] overflow-y-auto text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(stripBoilerplate(detail.text)) }} />
               ) : (
                 <p className="mt-3 text-sm text-ink-400">No extracted text{detail.status === 'PENDING' ? ' yet — still processing.' : '.'}</p>
               )}

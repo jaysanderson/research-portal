@@ -51,10 +51,19 @@ export function thumbnailUrl(thumbnail: string | undefined, kbId: string): strin
 }
 
 /** Inline-streamable URL for a resource's file field (video/PDF/etc.), proxied.
- *  Media elements can't send headers, so the KB is selected via ?kb=. */
+ *  Media elements can't send headers, so the KB is selected via ?kb=. Returns null
+ *  for BYO (local) KBs — their key can't ride in a src; use resourceFileBlobUrl. */
 export function resourceFileUrl(resourceId: string, fieldId: string, kbId: string): string | null {
   if (!kbId || kbId.startsWith('local-')) return null;
   return `/api/kb/resource/${resourceId}/file/${fieldId}/download/field?kb=${encodeURIComponent(kbId)}`;
+}
+
+/** Fetch a resource file through the proxy with the current KB's headers (works for
+ *  BYO KBs, whose key is sent as a header) and return an object URL for inline render. */
+export async function resourceFileBlobUrl(resourceId: string, fieldId: string): Promise<string | null> {
+  const res = await fetch(`/api/kb/resource/${resourceId}/file/${fieldId}/download/field`, { headers: kbHeaders() });
+  if (!res.ok) return null;
+  return URL.createObjectURL(await res.blob());
 }
 
 export interface FindParagraph {
