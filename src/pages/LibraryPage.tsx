@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Search as SearchIcon, Loader2, FileText, Link2, File, Library as LibIcon, Film, Music, Image as ImageIcon, FileType, CalendarDays } from 'lucide-react';
-import { listCatalog, thumbnailUrl, type ResourceCard, type CatalogSortField } from '../lib/nuclia';
+import { listCatalog, type ResourceCard, type CatalogSortField } from '../lib/nuclia';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, SkeletonGrid } from '../components/States';
-import { useCurrentKb, useKbProfile } from '../lib/hooks';
+import { useCurrentKb, useKbProfile, useKbImage } from '../lib/hooks';
 import { StatusChip } from '../components/StatusChip';
 import { cleanTitle, formatDate } from '../lib/util';
 
@@ -127,7 +127,7 @@ function kindOf(icon?: string): { label: string; Icon: typeof FileText } {
 function safeHost(u?: string) { if (!u) return ''; try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } }
 
 function LibCard({ r, kbId }: { r: ResourceCard; kbId: string }) {
-  const src = thumbnailUrl(r.thumbnail, kbId);
+  const src = useKbImage(r.thumbnail, kbId);
   const [failed, setFailed] = useState(false);
   const { label, Icon } = kindOf(r.icon);
   return (

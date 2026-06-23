@@ -50,6 +50,15 @@ export function thumbnailUrl(thumbnail: string | undefined, kbId: string): strin
   return `/api/kb/${rest}?kb=${encodeURIComponent(kbId)}`;
 }
 
+/** Fetch a thumbnail through the proxy with the current KB's headers (BYO KBs send
+ *  their key as a header, since it can't ride in an <img src>) → object URL. */
+export async function thumbnailBlobUrl(thumbnail: string): Promise<string | null> {
+  const rest = thumbnail.replace(/^\/?kb\/[^/]+\//, '');
+  const res = await fetch(`/api/kb/${rest}`, { headers: kbHeaders() });
+  if (!res.ok) return null;
+  return URL.createObjectURL(await res.blob());
+}
+
 /** Inline-streamable URL for a resource's file field (video/PDF/etc.), proxied.
  *  Media elements can't send headers, so the KB is selected via ?kb=. Returns null
  *  for BYO (local) KBs — their key can't ride in a src; use resourceFileBlobUrl. */

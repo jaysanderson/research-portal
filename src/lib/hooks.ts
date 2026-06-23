@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react';
 import { getConfig, currentKb, type PortalConfig, type KbInfo } from './api';
-import { getCounters, type Counters } from './nuclia';
+import { getCounters, thumbnailUrl, thumbnailBlobUrl, type Counters } from './nuclia';
 import { generateProfile, readProfileCache, type KbProfile } from './kbProfile';
+
+/** Displayable thumbnail URL: direct ?kb= for built-in KBs, header-auth blob for BYO. */
+export function useKbImage(thumbnail: string | undefined, kbId?: string): string | null {
+  const [url, setUrl] = useState<string | null>(() => (kbId && !kbId.startsWith('local-') ? thumbnailUrl(thumbnail, kbId) : null));
+  useEffect(() => {
+    if (!thumbnail || !kbId) { setUrl(null); return; }
+    if (!kbId.startsWith('local-')) { setUrl(thumbnailUrl(thumbnail, kbId)); return; }
+    let obj: string | null = null; let active = true;
+    thumbnailBlobUrl(thumbnail).then((u) => { if (active) { obj = u; setUrl(u); } else if (u) URL.revokeObjectURL(u); }).catch(() => {});
+    return () => { active = false; if (obj) URL.revokeObjectURL(obj); };
+  }, [thumbnail, kbId]);
+  return url;
+}
 
 export function useConfig() {
   const [config, setConfig] = useState<PortalConfig | null>(null);

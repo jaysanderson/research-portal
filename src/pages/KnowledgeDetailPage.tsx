@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Download } from 'lucide-react';
-import { getResource, resourceFileUrl, resourceFileBlobUrl, thumbnailUrl } from '../lib/nuclia';
+import { getResource, resourceFileUrl, resourceFileBlobUrl } from '../lib/nuclia';
 import { useChat } from '../lib/useChat';
-import { useCurrentKb } from '../lib/hooks';
+import { useCurrentKb, useKbImage } from '../lib/hooks';
 import { ChatThread } from '../components/chat/ChatThread';
 import { StatusChip } from '../components/StatusChip';
 import { SaveButton } from '../components/SaveButton';
@@ -90,7 +90,7 @@ export default function KnowledgeDetailPage() {
 
   const mediaUrl = isLocal ? blobUrl : directUrl;
   const mediaResolving = isLocal && embeddable && !!detail?.file && !blobUrl;
-  const thumbUrl = detail?.thumbnail && kb?.id ? thumbnailUrl(detail.thumbnail, kb.id) : null;
+  const thumbUrl = useKbImage(detail?.thumbnail, kb?.id);
   const isMedia = mediaUrl && /^(video|audio|image)\//.test(ct);
   const isPdf = mediaUrl && ct === 'application/pdf';
 
