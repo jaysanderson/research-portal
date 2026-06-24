@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Table2, FileText, GraduationCap, Loader2, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
 import { askStructured, type Citation } from '../lib/nuclia';
@@ -55,13 +55,16 @@ function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: ()
   );
 }
 
-function Composer({ value, onChange, onRun, busy, placeholder }: { value: string; onChange: (s: string) => void; onRun: () => void; busy: boolean; placeholder: string }) {
+function Composer({ value, onChange, onRun, busy, placeholder }: { value: string; onChange: (s: string) => void; onRun: (live: string) => void; busy: boolean; placeholder: string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  // Read the live DOM value so a click right after a keystroke can't fire on stale state.
+  const submit = () => onRun((ref.current?.value ?? value).trim());
   return (
     <div className="flex gap-2">
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        onKeyDown={(e) => { if (e.key === 'Enter') onRun(); }}
+      <input ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
         className="flex-1 rounded-xl border border-ink-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-brand-400" />
-      <button onClick={onRun} disabled={busy} className="btn-primary px-5">{busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Generate</button>
+      <button onClick={submit} disabled={busy} className="btn-primary px-5">{busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Generate</button>
     </div>
   );
 }
@@ -114,7 +117,7 @@ function MatrixTool() {
   const { busy, out, cites, err, run } = useGenerator<ComparisonOut>(comparisonSchema);
   return (
     <div className="card p-5">
-      <Composer value={q} onChange={setQ} onRun={() => run(q)} busy={busy} placeholder="Which vendors and dimensions to compare…" />
+      <Composer value={q} onChange={setQ} onRun={(v) => run(v)} busy={busy} placeholder="Which vendors and dimensions to compare…" />
       {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
       {busy && !out && <GenSkeleton label="Building comparison matrix…" />}
       {out && (
@@ -146,7 +149,7 @@ function BriefingTool() {
   const { busy, out, cites, err, run } = useGenerator<BriefingOut>(briefingSchema);
   return (
     <div className="card p-5">
-      <Composer value={q} onChange={setQ} onRun={() => run(q)} busy={busy} placeholder="Briefing topic…" />
+      <Composer value={q} onChange={setQ} onRun={(v) => run(v)} busy={busy} placeholder="Briefing topic…" />
       {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
       {busy && !out && <GenSkeleton label="Writing briefing…" />}
       {out && (
@@ -181,7 +184,7 @@ function QuizTool() {
 
   return (
     <div className="card p-5">
-      <Composer value={q} onChange={setQ} onRun={() => start(q)} busy={busy} placeholder="Assessment topic…" />
+      <Composer value={q} onChange={setQ} onRun={(v) => start(v)} busy={busy} placeholder="Assessment topic…" />
       {err && <p className="mt-3 text-sm text-rose-600">{err}</p>}
       {busy && !out && <GenSkeleton label="Generating assessment…" />}
       {out && (

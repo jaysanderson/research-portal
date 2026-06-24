@@ -142,17 +142,23 @@ export function kbHeaders(): Record<string, string> {
   return { 'x-kb': _selectedKbId, ...agentHeaders(getAgentOverride(_selectedKbId)) };
 }
 
+let _configInflight: Promise<PortalConfig> | null = null;
 export async function getConfig(force = false): Promise<PortalConfig> {
   if (_config && !force) return _config;
-  const res = await fetch('/api/config');
-  _config = await res.json();
-  const ids = new Set(mergedKbs(_config).map((k) => k.id));
-  if (!_selectedKbId || !ids.has(_selectedKbId)) {
-    const all = mergedKbs(_config);
-    const first = all.find((k) => k.connected) || all[0];
-    if (first) _selectedKbId = first.id;
-  }
-  return _config!;
+  // Dedupe concurrent first-load calls (several components mount at once) into one fetch.
+  if (_configInflight && !force) return _configInflight;
+  _configInflight = (async () => {
+    const res = await fetch('/api/config');
+    _config = await res.json();
+    const ids = new Set(mergedKbs(_config).map((k) => k.id));
+    if (!_selectedKbId || !ids.has(_selectedKbId)) {
+      const all = mergedKbs(_config);
+      const first = all.find((k) => k.connected) || all[0];
+      if (first) _selectedKbId = first.id;
+    }
+    return _config!;
+  })().finally(() => { _configInflight = null; });
+  return _configInflight;
 }
 
 export function currentKb(config: PortalConfig | null): KbInfo | null {

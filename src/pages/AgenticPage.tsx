@@ -45,6 +45,7 @@ export default function AgenticPage() {
   const examples = profile?.exampleQuestions?.length ? profile.exampleQuestions : FALLBACK_EXAMPLES;
   const aragOn = !!(kb?.aragConfigured && kb?.connected);
   const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const [running, setRunning] = useState(false);
   const [activeStages, setActiveStages] = useState<Record<StageId, string | undefined>>({} as any);
   const [chunks, setChunks] = useState<ContextChunk[]>([]);
@@ -121,8 +122,8 @@ export default function AgenticPage() {
       <PageHeader title="Agentic retrieval"
         description={`Ask a complex question and get a grounded, cited answer. Open “Show reasoning” to inspect the full pipeline.${aragOn ? ' Multi-driver agent active.' : ' KB-pipeline mode — connect an ARAG agent for multi-driver + REMi.'}`} />
 
-      <form onSubmit={(e) => { e.preventDefault(); run(input); }} className="flex gap-2">
-        <input value={input} onChange={(e) => setInput(e.target.value)} aria-label="Ask an agentic question"
+      <form onSubmit={(e) => { e.preventDefault(); run((inputRef.current?.value ?? input).trim()); }} className="flex gap-2">
+        <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} aria-label="Ask an agentic question"
           placeholder="Ask a complex, multi-source question…" className="input py-3" />
         {running ? (
           <button type="button" onClick={stop} className="btn-secondary px-5"><Square size={16} /> Stop</button>

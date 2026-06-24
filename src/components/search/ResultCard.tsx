@@ -23,6 +23,9 @@ export function ResultCard({ r }: { r: FindResult }) {
           <Link to={`/knowledge/${r.resourceId}`} className="t-h3 hover:text-brand-700">{cleanTitle(r.title)}</Link>
           {r.url && <div className="truncate text-xs text-ink-500">{safeHost(r.url)}</div>}
         </div>
+        {r.score > 0 && (
+          <span title="Relevance" className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">{Math.round(Math.min(r.score, 1) * 100)}%</span>
+        )}
         {r.url && <a href={r.url} target="_blank" rel="noreferrer" aria-label="Open source" className="text-ink-400 hover:text-brand-600"><ExternalLink size={15} /></a>}
       </div>
       {snippet && <p className="mt-2 line-clamp-2 text-sm text-ink-600">{snippet}</p>}

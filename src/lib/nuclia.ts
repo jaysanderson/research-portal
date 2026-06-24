@@ -206,7 +206,19 @@ export async function find(query: string, opts: { filters?: string[]; pageSize?:
     };
   });
   results.sort((a, b) => b.score - a.score);
-  return results;
+  // Relevance floor: real matches score ≳0.2, noise/gibberish ≲0.01 — drop the noise
+  // so off-corpus queries return a true "no results" instead of 18 unrelated docs.
+  const MIN_SCORE = 0.1;
+  const relevant = results.filter((r) => (r.score ?? 0) >= MIN_SCORE);
+  // Near-duplicate suppression: collapse repeated site nav/footer chrome that crawls
+  // into many near-identical resources (e.g. 7 copies of a vendor menu).
+  const seen = new Set<string>();
+  return relevant.filter((r) => {
+    const sig = (r.paragraphs[0]?.text || r.title).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (sig.length > 24 && seen.has(sig)) return false;
+    seen.add(sig);
+    return true;
+  });
 }
 
 export interface CitationMark { pos: number; n: number } // insert marker [n] at answer char offset pos
@@ -332,6 +344,22 @@ export async function crawlSite(url: string, limit = 40): Promise<{ source: stri
 }
 
 /** Facet counts for a labelset, e.g. getFacets('vendor') -> { 'Progress Sitefinity': 20, ... } */
+/** All labelsets' facet counts in ONE /catalog call (Nuclia accepts multiple `faceted`). */
+export async function getFacetsBatch(labelsets: string[]): Promise<Record<string, Record<string, number>>> {
+  if (!labelsets.length) return {};
+  const keys = labelsets.map((l) => `/classification.labels/${l}`);
+  const data = await kb<any>('catalog', { query: { faceted: keys, page_size: 0 } });
+  const facets = data.fulltext?.facets || data.facets || {};
+  const out: Record<string, Record<string, number>> = {};
+  for (const l of labelsets) {
+    const node = facets[`/classification.labels/${l}`] || {};
+    const m: Record<string, number> = {};
+    for (const [tag, count] of Object.entries(node)) m[tag.split('/').pop() || tag] = count as number;
+    out[l] = m;
+  }
+  return out;
+}
+
 export async function getFacets(labelset: string): Promise<Record<string, number>> {
   const key = `/classification.labels/${labelset}`;
   const data = await kb<any>('catalog', { query: { faceted: key, page_size: 0 } });

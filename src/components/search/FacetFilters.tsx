@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getFacets, getLabelsets } from '../../lib/nuclia';
+import { getFacetsBatch, getLabelsets } from '../../lib/nuclia';
 
 const ORDER = ['vendor', 'resource-type', 'topic'];
 
@@ -14,10 +14,8 @@ export function FacetFilters({ selected, onToggle, onClear }: {
     (async () => {
       const ls = await getLabelsets().catch(() => ({}));
       const ids = ORDER.filter((id) => id in ls).concat(Object.keys(ls).filter((id) => !ORDER.includes(id)));
-      const out = await Promise.all(ids.map(async (id) => {
-        const counts = await getFacets(id).catch(() => ({}));
-        return { id, title: ls[id]?.title || id, values: Object.entries(counts).sort((a, b) => b[1] - a[1]) };
-      }));
+      const facets = await getFacetsBatch(ids).catch(() => ({} as Record<string, Record<string, number>>));
+      const out = ids.map((id) => ({ id, title: ls[id]?.title || id, values: Object.entries(facets[id] || {}).sort((a, b) => b[1] - a[1]) }));
       setGroups(out.filter((g) => g.values.length));
     })();
   }, []);
