@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ask, isRefusal, type Citation } from './nuclia';
+import { ask, isRefusal, type Citation, type CitationMark } from './nuclia';
 
 const NO_ANSWER = 'I couldn’t find a grounded answer to that in this Knowledge Box. Try rephrasing, or use **Search** to browse related results.';
 
@@ -7,6 +7,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   citations?: Citation[];
+  marks?: CitationMark[];
   streaming?: boolean;
   error?: boolean;
 }
@@ -33,7 +34,7 @@ export function useChat(opts: { filters?: string[]; resourceId?: string } = {}) 
         if (chunk.kind === 'answer' && chunk.text) {
           setMessages((m) => { const c = [...m]; const last = c[c.length - 1]; if (last?.role === 'assistant') last.content += chunk.text; return c; });
         } else if (chunk.kind === 'citations' && chunk.citations) {
-          setMessages((m) => { const c = [...m]; const last = c[c.length - 1]; if (last?.role === 'assistant') last.citations = chunk.citations; return c; });
+          setMessages((m) => { const c = [...m]; const last = c[c.length - 1]; if (last?.role === 'assistant') { last.citations = chunk.citations; last.marks = chunk.marks; } return c; });
         }
       }
     } catch (err) {

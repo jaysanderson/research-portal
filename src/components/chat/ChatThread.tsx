@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Send, Square, Sparkles, User } from 'lucide-react';
-import { renderMarkdown } from '../../lib/markdown';
+import { renderMarkdown, renderWithCitations } from '../../lib/markdown';
 import { isRefusal } from '../../lib/nuclia';
 import { Citations } from '../Citations';
 import type { ChatMessage } from '../../lib/useChat';
@@ -71,7 +71,7 @@ function Bubble({ m, compact }: { m: ChatMessage; compact?: boolean }) {
           <p className={`whitespace-pre-wrap ${compact ? 'text-sm' : ''}`}>{m.content}</p>
         ) : (
           <>
-            {!isRefusal(m.content) && <div className="prose-answer" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }} />}
+            {!isRefusal(m.content) && <div className="prose-answer" dangerouslySetInnerHTML={{ __html: renderWithCitations(m.content, m.streaming ? [] : (m.marks || [])) }} />}
             {m.streaming && !m.content && (
               <div className="flex items-center gap-2 py-0.5 text-xs text-ink-500">
                 <span className="flex gap-1"><Dot /><Dot d={150} /><Dot d={300} /></span> Reading sources…

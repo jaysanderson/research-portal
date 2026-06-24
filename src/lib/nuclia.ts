@@ -209,7 +209,8 @@ export async function find(query: string, opts: { filters?: string[]; pageSize?:
   return results;
 }
 
-export interface AskChunk { kind: 'answer' | 'citations' | 'status' | 'metadata'; text?: string; citations?: Citation[] }
+export interface CitationMark { pos: number; n: number } // insert marker [n] at answer char offset pos
+export interface AskChunk { kind: 'answer' | 'citations' | 'status' | 'metadata'; text?: string; citations?: Citation[]; marks?: CitationMark[] }
 
 /** Streaming /ask. Yields incremental answer text + final citations. */
 export async function* ask(
@@ -243,16 +244,21 @@ export async function* ask(
       }
       yield { kind: 'status' };
     } else if (t === 'citations') {
-      // Citation keys look like "<rid>/<field_type>/<field>/<range>"; dedupe by resource.
-      const seen = new Set<string>();
-      const cites: Citation[] = [];
-      for (const key of Object.keys(item.citations || {})) {
+      // Keys: "<rid>/<field_type>/<field>/<range>"; values: [[answer_start, answer_end], …]
+      // — the char ranges in the answer each source supports. We number sources by
+      // first appearance and emit inline marks at each range end for [n] anchors.
+      const order: string[] = [];
+      const nOf = (rid: string) => { let i = order.indexOf(rid); if (i < 0) { order.push(rid); i = order.length - 1; } return i + 1; };
+      const marks: CitationMark[] = [];
+      for (const [key, val] of Object.entries<any>(item.citations || {})) {
         const rid = key.split('/')[0];
-        if (seen.has(rid)) continue;
-        seen.add(rid);
-        cites.push({ resourceId: rid, title: resourceMap[rid]?.title || `Source ${cites.length + 1}`, url: resourceMap[rid]?.url });
+        const n = nOf(rid);
+        for (const range of (Array.isArray(val) ? val : [])) {
+          if (Array.isArray(range) && range.length === 2 && Number.isFinite(range[1])) marks.push({ pos: range[1], n });
+        }
       }
-      yield { kind: 'citations', citations: cites };
+      const cites: Citation[] = order.map((rid, i) => ({ resourceId: rid, title: resourceMap[rid]?.title || `Source ${i + 1}`, url: resourceMap[rid]?.url }));
+      yield { kind: 'citations', citations: cites, marks };
     } else if (t === 'status') {
       yield { kind: 'status' };
     }

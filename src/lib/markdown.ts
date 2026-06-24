@@ -40,6 +40,23 @@ export function renderMarkdown(src: string): string {
   try { return sanitizeHtml(marked.parse(src) as string); } catch { return escapeHtml(src || ''); }
 }
 
+// Render an answer with inline citation anchors. `marks` give answer char offsets
+// where a source [n] should appear; we splice in sentinel tokens (so they survive
+// Markdown + sanitization), then swap them for clickable superscript links.
+export function renderWithCitations(answer: string, marks: { pos: number; n: number }[]): string {
+  if (!marks?.length) return renderMarkdown(answer);
+  const byPos = new Map<number, Set<number>>();
+  for (const m of marks) { const set = byPos.get(m.pos) || new Set<number>(); set.add(m.n); byPos.set(m.pos, set); }
+  let out = answer;
+  for (const pos of [...byPos.keys()].sort((a, b) => b - a)) { // splice from the end so offsets stay valid
+    const ns = [...byPos.get(pos)!].sort((a, b) => a - b);
+    const p = Math.min(Math.max(pos, 0), out.length);
+    out = out.slice(0, p) + ns.map((n) => `⟦${n}⟧`).join('') + out.slice(p);
+  }
+  const html = renderMarkdown(out);
+  return html.replace(/⟦(\d+)⟧/g, (_m, n) => `<sup class="rp-cite"><a href="#cite-${n}">${n}</a></sup>`);
+}
+
 // Strip Markdown/structure to clean prose for previews & snippets, so raw
 // ###, **, and broken table pipes never leak into the UI.
 export function toPlainText(src: string): string {

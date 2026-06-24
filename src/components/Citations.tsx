@@ -13,7 +13,7 @@ export function CitationRef({ index, c }: { index: number; c: Citation }) {
     </>
   );
   return (
-    <span className="group relative inline-flex">
+    <span id={`cite-${index}`} className="group relative inline-flex scroll-mt-20">
       {c.resourceId ? (
         <Link to={`/knowledge/${c.resourceId}`} className="chip-link">{inner}</Link>
       ) : (
