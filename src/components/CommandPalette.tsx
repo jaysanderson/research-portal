@@ -16,9 +16,11 @@ export function CommandPalette() {
       if (e.key === 'Escape') setOpen(false);
     };
     const onOpen = () => setOpen(true);
-    window.addEventListener('keydown', onKey);
+    // Capture phase so it fires even when focus is in an input/textarea and before
+    // any element-level handler can swallow the keystroke.
+    window.addEventListener('keydown', onKey, { capture: true });
     window.addEventListener('rp-open-palette', onOpen);
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('rp-open-palette', onOpen); };
+    return () => { window.removeEventListener('keydown', onKey, { capture: true } as any); window.removeEventListener('rp-open-palette', onOpen); };
   }, []);
 
   useEffect(() => { if (open) { setQ(''); setActive(0); setTimeout(() => inputRef.current?.focus(), 20); } }, [open]);

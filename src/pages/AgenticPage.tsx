@@ -13,7 +13,7 @@ import { streamAgent } from '../lib/aragAgent';
 import { isRefusal, type Citation } from '../lib/nuclia';
 import { useCurrentKb, useKbProfile } from '../lib/hooks';
 import { renderMarkdown, toPlainText } from '../lib/markdown';
-import { cleanTitle } from '../lib/util';
+import { cleanTitle, stripBoilerplate } from '../lib/util';
 import { PageHeader } from '../components/PageHeader';
 import { Citations } from '../components/Citations';
 import { SaveButton } from '../components/SaveButton';
@@ -220,7 +220,7 @@ export default function AgenticPage() {
                                 {[1, 2, 3].map((n) => <span key={n} className={`h-1.5 w-1.5 rounded-full ${n <= strength(c.score) ? 'bg-brand-500' : 'bg-ink-200'}`} />)}
                               </span>
                             </div>
-                            {c.text && <p className="mt-1 line-clamp-2 text-[11px] text-ink-500">{toPlainText(c.text)}</p>}
+                            {c.text && <p className="mt-1 line-clamp-2 text-[11px] text-ink-500">{toPlainText(stripBoilerplate(c.text))}</p>}
                           </Link>
                         ))}
                       </div>

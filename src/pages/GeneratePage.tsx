@@ -33,7 +33,7 @@ export default function GeneratePage() {
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
       <PageHeader title="Generate" description="Schema-enforced research artifacts, generated and grounded in your Knowledge Box." />
 
-      <div className="flex gap-1 rounded-lg border border-ink-200 bg-white p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-ink-200 bg-white p-1">
         <TabBtn active={tab === 'matrix'} onClick={() => setTab('matrix')} icon={<Table2 size={16} />} label="Comparison matrix" />
         <TabBtn active={tab === 'briefing'} onClick={() => setTab('briefing')} icon={<FileText size={16} />} label="Briefing" />
         <TabBtn active={tab === 'quiz'} onClick={() => setTab('quiz')} icon={<GraduationCap size={16} />} label="Assessment" />
@@ -50,7 +50,7 @@ export default function GeneratePage() {
 
 function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
-    <button onClick={onClick} className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+    <button onClick={onClick} className={`flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors ${
       active ? 'bg-brand-600 text-white' : 'text-ink-600 hover:bg-ink-100'}`}>{icon}{label}</button>
   );
 }

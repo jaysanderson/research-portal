@@ -38,7 +38,7 @@ export default function IngestPage() {
 
       <AddThemeModal open={themeOpen} onClose={() => setThemeOpen(false)} onAdded={bump} />
 
-      <div className="flex gap-1 rounded-lg border border-ink-200 bg-white p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-ink-200 bg-white p-1">
         <TabBtn active={tab === 'upload'} onClick={() => setTab('upload')} icon={<Upload size={16} />} label="Upload files" />
         <TabBtn active={tab === 'link'} onClick={() => setTab('link')} icon={<Link2 size={16} />} label="Add links" />
         <TabBtn active={tab === 'text'} onClick={() => setTab('text')} icon={<FileText size={16} />} label="Paste text" />
@@ -62,7 +62,7 @@ export default function IngestPage() {
 function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return (
     <button onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+      className={`flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors ${
         active ? 'bg-brand-600 text-white' : 'text-ink-600 hover:bg-ink-100'}`}>
       {icon}{label}
     </button>

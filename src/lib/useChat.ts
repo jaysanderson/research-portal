@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { ask, type Citation } from './nuclia';
+import { ask, isRefusal, type Citation } from './nuclia';
+
+const NO_ANSWER = 'I couldn’t find a grounded answer to that in this Knowledge Box. Try rephrasing, or use **Search** to browse related results.';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -37,7 +39,15 @@ export function useChat(opts: { filters?: string[]; resourceId?: string } = {}) 
     } catch (err) {
       if (!ctrl.signal.aborted) setMessages((m) => { const c = [...m]; const last = c[c.length - 1]; if (last?.role === 'assistant') { last.error = true; last.content = last.content || `Error: ${String(err).slice(0, 120)}`; } return c; });
     } finally {
-      setMessages((m) => { const c = [...m]; const last = c[c.length - 1]; if (last?.role === 'assistant') last.streaming = false; return c; });
+      setMessages((m) => {
+        const c = [...m]; const last = c[c.length - 1];
+        if (last?.role === 'assistant') {
+          last.streaming = false;
+          // Off-domain queries can stream nothing (or a refusal) — never leave a blank bubble.
+          if (!last.error && !ctrl.signal.aborted && (!last.content.trim() || isRefusal(last.content))) last.content = NO_ANSWER;
+        }
+        return c;
+      });
       if (!ctrl.signal.aborted) setBusy(false);
     }
   }, [messages, busy, opts.filters, opts.resourceId]);

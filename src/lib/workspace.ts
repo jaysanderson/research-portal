@@ -21,7 +21,10 @@ const KEY = 'rp_workspace';
 export function loadWorkspace(): WorkspaceItem[] {
   try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
 }
-function persist(items: WorkspaceItem[]) { localStorage.setItem(KEY, JSON.stringify(items)); window.dispatchEvent(new Event('workspace-change')); }
+function persist(items: WorkspaceItem[]) {
+  try { localStorage.setItem(KEY, JSON.stringify(items)); } catch { /* quota/full — still notify so the UI reflects in-memory intent */ }
+  window.dispatchEvent(new Event('workspace-change'));
+}
 
 export function addItem(item: Omit<WorkspaceItem, 'id' | 'createdAt'>): WorkspaceItem {
   const full: WorkspaceItem = { ...item, id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, createdAt: Date.now() };

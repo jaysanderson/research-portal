@@ -17,20 +17,23 @@ export function AnswerCard({ query, filters }: { query: string; filters: string[
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setAnswer(''); setCitations([]); setError(null); setStreaming(true);
-    (async () => {
-      try {
-        for await (const chunk of ask(query, { filters, signal: ctrl.signal })) {
-          if (chunk.kind === 'answer' && chunk.text) setAnswer((a) => a + chunk.text);
-          if (chunk.kind === 'citations' && chunk.citations) setCitations(chunk.citations);
+    // Debounce so rapid facet toggles don't fire a fresh generation on every click.
+    const timer = setTimeout(() => {
+      setAnswer(''); setCitations([]); setError(null); setStreaming(true);
+      (async () => {
+        try {
+          for await (const chunk of ask(query, { filters, signal: ctrl.signal })) {
+            if (chunk.kind === 'answer' && chunk.text) setAnswer((a) => a + chunk.text);
+            if (chunk.kind === 'citations' && chunk.citations) setCitations(chunk.citations);
+          }
+        } catch (err) {
+          if (!ctrl.signal.aborted) setError(friendlyError(err, 'Could not generate an answer. Please try again.'));
+        } finally {
+          if (!ctrl.signal.aborted) setStreaming(false);
         }
-      } catch (err) {
-        if (!ctrl.signal.aborted) setError(friendlyError(err, 'Could not generate an answer. Please try again.'));
-      } finally {
-        if (!ctrl.signal.aborted) setStreaming(false);
-      }
-    })();
-    return () => ctrl.abort();
+      })();
+    }, 450);
+    return () => { clearTimeout(timer); ctrl.abort(); };
   }, [query, filters.join('|')]);
 
   if (!query.trim()) return null;

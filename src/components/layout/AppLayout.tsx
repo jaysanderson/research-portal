@@ -50,7 +50,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <Sidebar kb={kb} drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-ink-200 bg-ink-50/85 px-4 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-200 bg-ink-50/85 px-4 backdrop-blur md:px-8">
           <button onClick={() => setDrawerOpen(true)} className="btn-ghost -ml-1.5 px-2 md:hidden" aria-label="Open navigation">
             <Menu size={20} />
           </button>

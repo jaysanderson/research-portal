@@ -2,7 +2,7 @@
 // caches it (shared across all users); the client also caches in localStorage for
 // an instant per-user revisit. So the first visitor triggers one generation and
 // everyone after — on any device — gets it immediately.
-import { kbHeaders } from './api';
+import { headersForKb } from './api';
 
 export interface KbProfile {
   subject: string;       // short domain label
@@ -13,7 +13,7 @@ export interface KbProfile {
 }
 
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — aggressive (client side)
-const VERSION = 1;
+const VERSION = 2; // bumped: invalidate caches poisoned by the wrong-KB fetch bug
 const keyFor = (kbId: string) => `rp_kbprofile_${VERSION}_${kbId}`;
 const mem = new Map<string, KbProfile>();
 
@@ -39,8 +39,9 @@ export function setProfileCache(kbId: string, data: KbProfile) { writeProfileCac
 
 export async function generateProfile(kbId: string, opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<KbProfile> {
   if (!opts.force) { const c = readProfileCache(kbId); if (c) return c; }
-  // Server generates + caches once per KB (shared); kbHeaders() selects the KB.
-  const res = await fetch(`/api/profile${opts.force ? '?force=1' : ''}`, { headers: kbHeaders(), signal: opts.signal });
+  // Fetch with headers for THIS specific KB (not the globally-selected one) so the
+  // profile can never be for a different box than the one it's cached/displayed under.
+  const res = await fetch(`/api/profile${opts.force ? '?force=1' : ''}`, { headers: headersForKb({ id: kbId }), signal: opts.signal });
   if (!res.ok) throw new Error(`profile -> ${res.status}`);
   const object = await res.json();
   const clean: KbProfile = {

@@ -19,7 +19,12 @@ export default function WorkspacePage() {
   const refresh = () => setItems(loadWorkspace());
   useEffect(() => { refresh(); window.addEventListener('workspace-change', refresh); return () => window.removeEventListener('workspace-change', refresh); }, []);
 
-  const addNote = () => { if (!noteBody.trim()) return; addItem({ type: 'note', title: noteTitle || 'Note', content: noteBody }); setNoteTitle(''); setNoteBody(''); };
+  const addNote = () => {
+    if (!noteBody.trim()) return;
+    addItem({ type: 'note', title: noteTitle.trim() || 'Note', content: noteBody });
+    setNoteTitle(''); setNoteBody('');
+    setItems(loadWorkspace()); // reflect immediately, independent of the change event
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
