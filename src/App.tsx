@@ -2,6 +2,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { CommandPalette } from './components/CommandPalette';
+import { Toaster } from './components/Toaster';
 import DashboardPage from './pages/DashboardPage';
 import IngestPage from './pages/IngestPage';
 import TaxonomyPage from './pages/TaxonomyPage';
@@ -56,6 +57,7 @@ function MainApp() {
       </ErrorBoundary>
       <FloatingChat />
       <CommandPalette />
+      <Toaster />
     </AppLayout>
   );
 }

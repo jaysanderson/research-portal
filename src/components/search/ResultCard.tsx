@@ -7,13 +7,15 @@ import { cleanTitle, stripBoilerplate } from '../../lib/util';
 function safeHost(u?: string) { if (!u) return ''; try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } }
 
 export function ResultCard({ r }: { r: FindResult }) {
-  // Use the first matched paragraph that isn't just nav/cookie chrome.
+  // Use the first matched paragraph that isn't just nav/cookie chrome; fall back to
+  // the resource summary (keyword-mode results often have no paragraph body).
   const snippet = (() => {
     for (const p of r.paragraphs) {
       const t = stripBoilerplate(toPlainText(p.text)).trim();
       if (t.length > 20) return t;
     }
-    return '';
+    const s = stripBoilerplate(toPlainText(r.summary || '')).trim();
+    return s.length > 20 ? s : '';
   })();
   return (
     <div className="card card-hover p-4">

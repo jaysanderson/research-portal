@@ -1,6 +1,7 @@
 // Research workspace — saved findings, notes, and citation export.
 // localStorage-backed for the demo; swap for Supabase (RLS, per-user) in production.
 import type { Citation } from './nuclia';
+import { getSelectedKbId } from './api';
 
 export type ItemType = 'note' | 'answer' | 'resource' | 'artifact';
 
@@ -14,6 +15,7 @@ export interface WorkspaceItem {
   resourceId?: string;
   citations?: Citation[];
   createdAt: number;
+  kbId?: string;          // which Knowledge Box this was saved from
 }
 
 const KEY = 'rp_workspace';
@@ -27,8 +29,12 @@ function persist(items: WorkspaceItem[]) {
 }
 
 export function addItem(item: Omit<WorkspaceItem, 'id' | 'createdAt'>): WorkspaceItem {
-  const full: WorkspaceItem = { ...item, id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, createdAt: Date.now() };
+  const full: WorkspaceItem = { ...item, kbId: item.kbId || getSelectedKbId() || undefined, id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, createdAt: Date.now() };
   const all = loadWorkspace(); all.unshift(full); persist(all); return full;
+}
+/** Items saved from a specific KB (legacy items with no kbId are treated as unscoped). */
+export function loadWorkspaceFor(kbId: string | undefined): WorkspaceItem[] {
+  return loadWorkspace().filter((i) => i.kbId === kbId);
 }
 export function removeItem(id: string) { persist(loadWorkspace().filter((i) => i.id !== id)); }
 export function clearWorkspace() { persist([]); }

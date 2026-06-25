@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { FileText, Layers, Hash, Database, MessageSquare, Coins, Clock, Tags } from 'lucide-react';
-import { getCounters, getFacets, getStatusCounts, getLabelsets, type Counters } from '../lib/nuclia';
+import { Link } from 'react-router-dom';
+import { FileText, Layers, Hash, Database, MessageSquare, Coins, Clock, Tags, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { getCounters, getFacets, getSourceHealth, getLabelsets, type Counters, type SourceHealth } from '../lib/nuclia';
 import { loadTraces } from '../lib/agentic';
 import { BarList } from '../components/BarList';
 import { PageHeader } from '../components/PageHeader';
@@ -12,14 +13,14 @@ const COLORS = ['#1A6A4F', '#C8861A', '#B5543F', '#5B7B8A', '#7C5C8A', '#0e7490'
 export default function AnalyticsPage() {
   const kb = useCurrentKb();
   const [counters, setCounters] = useState<Counters | null>(null);
-  const [status, setStatus] = useState<Record<string, number>>({});
+  const [health, setHealth] = useState<SourceHealth | null>(null);
   const [dists, setDists] = useState<{ id: string; title: string; data: [string, number][] }[]>([]);
   const [loadingDist, setLoadingDist] = useState(true);
 
   useEffect(() => {
-    setCounters(null); setStatus({}); setLoadingDist(true);
+    setCounters(null); setHealth(null); setLoadingDist(true);
     getCounters().then(setCounters).catch(() => {});
-    getStatusCounts().then(setStatus).catch(() => {});
+    getSourceHealth().then(setHealth).catch(() => {});
     getLabelsets().then(async (ls) => {
       const ids = Object.keys(ls);
       const out = await Promise.all(ids.map(async (id) => ({
@@ -33,8 +34,11 @@ export default function AnalyticsPage() {
   const traces = loadTraces(kb?.id);
   const totalTokens = traces.reduce((s, t) => s + (t.consumption?.inputTokens || 0) + (t.consumption?.outputTokens || 0), 0);
   const avgDur = traces.length ? traces.reduce((s, t) => s + (t.durationMs || 0), 0) / traces.length / 1000 : 0;
-  const processed = status['PROCESSED'] || 0;
-  const totalStatus = Object.values(status).reduce((a, b) => a + b, 0) || 1;
+  const counts = health?.counts || {};
+  const total = health?.total || 0;
+  const processed = counts['PROCESSED'] || 0;
+  const pct = total ? Math.round((processed / total) * 100) : 0;
+  const problems = health?.problems || [];
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
@@ -48,9 +52,23 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card title="Indexing health">
-          <div className="mb-3 flex items-center gap-2 text-sm"><span className="font-bold text-brand-600">{Math.round((processed / totalStatus) * 100)}%</span><span className="text-ink-500">indexed</span></div>
-          <BarList color="#237D5E" data={Object.entries(status).sort((a, b) => b[1] - a[1])} />
+        <Card title="Source health">
+          <div className="mb-3 flex items-center gap-2 text-sm"><span className="font-bold text-brand-600">{pct}%</span><span className="text-ink-500">indexed · {total.toLocaleString()} resources</span></div>
+          <BarList color="#237D5E" data={Object.entries(counts).sort((a, b) => b[1] - a[1])} />
+          {problems.length > 0 ? (
+            <div className="mt-3 border-t border-ink-100 pt-3">
+              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700"><AlertTriangle size={13} /> {problems.length} need attention</div>
+              <ul className="max-h-44 space-y-1 overflow-y-auto">
+                {problems.slice(0, 25).map((p) => (
+                  <li key={p.id}><Link to={`/knowledge/${p.id}`} className="flex items-center gap-2 text-xs text-ink-600 hover:text-brand-700">
+                    <span className="chip shrink-0 bg-accent-50 text-accent-700">{p.status}</span><span className="truncate">{p.title}</span>
+                  </Link></li>
+                ))}
+              </ul>
+            </div>
+          ) : total > 0 && (
+            <div className="mt-3 flex items-center gap-1.5 border-t border-ink-100 pt-3 text-xs text-brand-700"><CheckCircle2 size={13} /> All resources processed cleanly.</div>
+          )}
         </Card>
         <Card title="Agentic usage (this device)">
           <div className="grid grid-cols-3 gap-3">

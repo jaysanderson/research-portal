@@ -1,29 +1,32 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, Plus, Download, FileDown, Table, Quote, StickyNote, MessageSquare, FileText, Library as LibIcon } from 'lucide-react';
-import { loadWorkspace, addItem, removeItem, clearWorkspace, toMarkdown, toBibtex, toCsv, download, type WorkspaceItem } from '../lib/workspace';
+import { loadWorkspaceFor, addItem, removeItem, clearWorkspace, toMarkdown, toBibtex, toCsv, download, type WorkspaceItem } from '../lib/workspace';
 import { renderMarkdown } from '../lib/markdown';
 import { stripBoilerplate } from '../lib/util';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
+import { useCurrentKb } from '../lib/hooks';
 
 const ICON: Record<string, React.ReactNode> = {
   note: <StickyNote size={15} />, answer: <MessageSquare size={15} />, resource: <LibIcon size={15} />, artifact: <FileText size={15} />,
 };
 
 export default function WorkspacePage() {
+  const kb = useCurrentKb();
   const [items, setItems] = useState<WorkspaceItem[]>([]);
   const [noteTitle, setNoteTitle] = useState('');
   const [noteBody, setNoteBody] = useState('');
 
-  const refresh = () => setItems(loadWorkspace());
-  useEffect(() => { refresh(); window.addEventListener('workspace-change', refresh); return () => window.removeEventListener('workspace-change', refresh); }, []);
+  // Scope the workspace to the active KB so cross-KB items don't linger.
+  const refresh = () => setItems(loadWorkspaceFor(kb?.id));
+  useEffect(() => { refresh(); const h = () => refresh(); window.addEventListener('workspace-change', h); return () => window.removeEventListener('workspace-change', h); }, [kb?.id]);
 
   const addNote = () => {
     if (!noteBody.trim()) return;
     addItem({ type: 'note', title: noteTitle.trim() || 'Note', content: noteBody });
     setNoteTitle(''); setNoteBody('');
-    setItems(loadWorkspace()); // reflect immediately, independent of the change event
+    setItems(loadWorkspaceFor(kb?.id)); // reflect immediately, independent of the change event
   };
 
   return (

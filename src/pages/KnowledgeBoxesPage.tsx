@@ -5,6 +5,7 @@ import {
   mergedKbs, disconnectedKbs, getLocalKbs, removeLocalKb, disconnectKb, reconnectKb, setSelectedKbId, headersForKb, probeKb, probeAgent,
   type KbInfo, type LocalKb,
 } from '../lib/api';
+import { toast } from '../lib/toast';
 import { PageHeader } from '../components/PageHeader';
 import { AddKbModal } from '../components/AddKbModal';
 import { AgentModal } from '../components/AgentModal';
@@ -111,6 +112,8 @@ function KbRow({ kb, isCurrent, busy, onSetActive, onSetup, onEdit, onAgent, onR
     const kbr = await probeKb(h);
     const agent = kb.aragConfigured ? await probeAgent(h) : undefined;
     setTesting(false); setRes({ kb: kbr, agent });
+    if (kbr.ok) toast(`${kb.name}: connected — ${kbr.resources?.toLocaleString() ?? '?'} resources${agent ? (agent.ok ? ' · agent OK' : ' · agent failed') : ''}.`, agent && !agent.ok ? 'info' : 'success');
+    else toast(`${kb.name}: ${kbr.error || 'connection failed'}`, 'error');
   };
 
   return (

@@ -12,7 +12,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setOpen((o) => !o); }
+      if ((e.metaKey || e.ctrlKey) && (e.key?.toLowerCase() === 'k' || e.code === 'KeyK')) { e.preventDefault(); setOpen((o) => !o); }
       if (e.key === 'Escape') setOpen(false);
     };
     const onOpen = () => setOpen(true);

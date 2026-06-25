@@ -92,6 +92,7 @@ export interface FindResult {
   score: number;
   paragraphs: FindParagraph[];
   labels: string[];
+  summary?: string;
 }
 
 export interface Citation { title: string; url?: string; resourceId?: string }
@@ -163,18 +164,32 @@ export function vendorFilter(labelset: string, label: string) {
   return `/classification.labels/${labelset}/${label}`;
 }
 
-export async function getStatusCounts(): Promise<Record<string, number>> {
+export interface ProblemResource { id: string; title: string; url?: string; status: string }
+export interface SourceHealth { counts: Record<string, number>; total: number; problems: ProblemResource[] }
+
+/** One pass over the whole KB: status counts + the non-PROCESSED resources (drillable). */
+export async function getSourceHealth(): Promise<SourceHealth> {
   const counts: Record<string, number> = {};
-  // Page the whole KB (cap as a runaway guard) so totals reconcile with the resource count.
+  const problems: ProblemResource[] = [];
+  let total = 0;
   for (let page = 0; page < 40; page++) {
-    const data = await kb<any>('catalog', { query: { page_number: page, page_size: 200, show: ['basic'] } });
+    const data = await kb<any>('catalog', { query: { page_number: page, page_size: 200, show: ['basic', 'origin'] } });
     const res = data.resources || {};
     const keys = Object.keys(res);
     if (!keys.length) break;
-    for (const k of keys) { const s = res[k]?.metadata?.status || 'PROCESSED'; counts[s] = (counts[s] || 0) + 1; }
+    for (const k of keys) {
+      total++;
+      const s = res[k]?.metadata?.status || 'PROCESSED';
+      counts[s] = (counts[s] || 0) + 1;
+      if (s !== 'PROCESSED') problems.push({ id: k, title: res[k].title || k, url: res[k].origin?.url, status: s });
+    }
     if (keys.length < 200) break;
   }
-  return counts;
+  return { counts, total, problems };
+}
+
+export async function getStatusCounts(): Promise<Record<string, number>> {
+  return (await getSourceHealth()).counts;
 }
 
 export async function find(query: string, opts: { filters?: string[]; pageSize?: number; mode?: RetrievalMode } = {}): Promise<FindResult[]> {
@@ -203,6 +218,7 @@ export async function find(query: string, opts: { filters?: string[]; pageSize?:
       score: r.score ?? paragraphs[0]?.score ?? 0,
       paragraphs: paragraphs.slice(0, 3),
       labels: classificationsOf(r).map((c) => c.label),
+      summary: r.summary,
     };
   });
   results.sort((a, b) => b.score - a.score);
