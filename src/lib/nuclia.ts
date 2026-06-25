@@ -256,15 +256,22 @@ export async function* ask(
   if (opts.context?.length) body.context = opts.context;
   if (opts.resourceId) body.resource_filters = [opts.resourceId];
 
-  const resourceMap: Record<string, { title: string; url?: string }> = {};
-  for await (const obj of streamNdjson('/api/kb/ask', {
-    method: 'POST',
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  })) {
+  // Nuclia's generative step occasionally throws a transient 412/5xx ("Unknown
+  // generative exception") before any answer streams — retry a couple of times
+  // (only while nothing has been emitted yet) so a hiccup doesn't surface as a failure.
+  for (let attempt = 1; ; attempt++) {
+   const resourceMap: Record<string, { title: string; url?: string }> = {};
+   let emitted = false;
+   try {
+    for await (const obj of streamNdjson('/api/kb/ask', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      signal: opts.signal,
+    })) {
     const item: any = (obj as any).item || obj;
     const t = item.type;
     if (t === 'answer' && typeof item.text === 'string') {
+      emitted = true;
       yield { kind: 'answer', text: item.text };
     } else if (t === 'retrieval') {
       for (const [rid, r] of Object.entries<any>(item.results?.resources || {})) {
@@ -290,6 +297,16 @@ export async function* ask(
     } else if (t === 'status') {
       yield { kind: 'status' };
     }
+    }
+    return; // stream completed
+   } catch (err) {
+    const retryable = /->\s*(412|5\d\d)/.test(String(err));
+    if (attempt < 3 && !emitted && retryable && !opts.signal?.aborted) {
+      await new Promise((r) => setTimeout(r, 700 * attempt));
+      continue;
+    }
+    throw err;
+   }
   }
 }
 
