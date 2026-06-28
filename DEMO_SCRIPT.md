@@ -34,6 +34,13 @@
 2. **Agentic**: ask **"Which printers suit dental or medical use, and why?"**
    - Expand **Show reasoning**: pipeline stages (Preprocess → Retrieve → Generate → Validate), the **Context** chunks (cleaned of cookie/nav chrome), token/latency **telemetry**, and the answer-quality (REMi) section. Thumbs-up to show trace feedback + history.
 
+## 3b. ⭐ Answer Journey — the "wow" moment (2 min)
+After any AI answer (Search, Assistant, or Agentic), click **"Journey through the context"**.
+1. A cinematic full-screen overlay opens and walks the grounding sources **strongest → weakest**.
+2. Each stop shows: the page **screenshot hero** (slow Ken-Burns zoom), an animated **confidence ring** (% match), the supporting passage ("What we found here"), a **"cited in the answer"** badge, and — streamed live — a resource-scoped answer to **"How does this relate to your question?"**.
+3. It **auto-plays** (per-stop progress bar; hover to pause); manual **Prev/Next**, progress dots, **←/→/Space/Esc**. Ends on a recap ("That's the trail") with Replay.
+   - **Talking point:** "You can *see and interrogate* exactly what the answer was built from — grounding made tangible." Works identically on Search, Assistant, and Agentic (Agentic reuses its retrieved chunks).
+
 ## 4. Generate — schema-enforced artifacts (90s)
 1. **Generate → Comparison matrix**: run the seeded prompt → a real table (printers × criteria) with sources.
 2. **Briefing** and **Assessment** tabs each produce structured output. (All three are strict-schema enforced, so they work on any KB's model.)
@@ -91,3 +98,4 @@ KB re-theme (switcher) → Search "best beginner 3D printer" (inline citations +
 - [x] **Source health** analytics (reconciled, drillable)
 - [x] **KB-scoped Workspace** + export
 - [x] Toast confirmations, ⌘K, responsive fixes
+- [x] **Answer Journey** — cinematic, auto-playing walkthrough of an answer's grounding (most→least confident, per-source "how this relates", confidence ring, screenshot hero) on Search + Assistant + Agentic
