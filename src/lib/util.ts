@@ -24,6 +24,19 @@ export function stripBoilerplate(text?: string): string {
     .trim();
 }
 
+// Deterministic gradient from a seed string — a pleasant placeholder/hero background
+// when a resource has no thumbnail. Shared by the Library cards and the Answer Journey.
+const GRADIENT_PALETTE: [string, string][] = [
+  ['#1A6A4F', '#237D5E'], ['#0e7490', '#06b6d4'], ['#8E5C14', '#C8861A'],
+  ['#7C5C8A', '#9b6fae'], ['#324160', '#5B7B8A'], ['#B5543F', '#cf6e57'],
+];
+export function gradientFor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const [a, b] = GRADIENT_PALETTE[h % GRADIENT_PALETTE.length];
+  return `linear-gradient(135deg, ${a}, ${b})`;
+}
+
 // Date helpers for "date added" display.
 export function formatDate(iso?: string): string {
   if (!iso) return '';

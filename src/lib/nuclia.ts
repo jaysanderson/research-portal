@@ -93,6 +93,7 @@ export interface FindResult {
   paragraphs: FindParagraph[];
   labels: string[];
   summary?: string;
+  thumbnail?: string;
 }
 
 export interface Citation { title: string; url?: string; resourceId?: string }
@@ -219,6 +220,7 @@ export async function find(query: string, opts: { filters?: string[]; pageSize?:
       paragraphs: paragraphs.slice(0, 3),
       labels: classificationsOf(r).map((c) => c.label),
       summary: r.summary,
+      thumbnail: r.thumbnail,
     };
   });
   results.sort((a, b) => b.score - a.score);

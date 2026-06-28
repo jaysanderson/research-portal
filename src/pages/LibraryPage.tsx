@@ -7,7 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, SkeletonGrid } from '../components/States';
 import { useCurrentKb, useKbProfile, useKbImage } from '../lib/hooks';
 import { StatusChip } from '../components/StatusChip';
-import { cleanTitle, formatDate } from '../lib/util';
+import { cleanTitle, formatDate, gradientFor } from '../lib/util';
 
 const PAGE = 24;
 
@@ -105,15 +105,6 @@ export default function LibraryPage() {
   );
 }
 
-const PALETTE: [string, string][] = [
-  ['#1A6A4F', '#237D5E'], ['#0e7490', '#06b6d4'], ['#8E5C14', '#C8861A'],
-  ['#7C5C8A', '#9b6fae'], ['#324160', '#5B7B8A'], ['#B5543F', '#cf6e57'],
-];
-function gradientFor(s: string): string {
-  let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  const [a, b] = PALETTE[h % PALETTE.length];
-  return `linear-gradient(135deg, ${a}, ${b})`;
-}
 function kindOf(icon?: string): { label: string; Icon: typeof FileText } {
   const i = icon || '';
   if (i.includes('stf-link') || i.includes('html')) return { label: 'Link', Icon: Link2 };

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Loader2, Send, Square, CheckCircle2, Circle, Cpu, Layers, Sparkles, ShieldCheck,
-  ThumbsUp, ThumbsDown, Clock, Hash, History, ChevronDown, ChevronRight,
+  ThumbsUp, ThumbsDown, Clock, Hash, History, ChevronDown, ChevronRight, Compass,
 } from 'lucide-react';
 import {
   askAgentic, loadTraces, saveTrace, updateTraceFeedback,
@@ -14,6 +14,8 @@ import { isRefusal, type Citation } from '../lib/nuclia';
 import { useCurrentKb, useKbProfile } from '../lib/hooks';
 import { renderMarkdown, toPlainText } from '../lib/markdown';
 import { cleanTitle, stripBoilerplate } from '../lib/util';
+import { AnswerJourney } from '../components/journey/AnswerJourney';
+import { fromChunks } from '../lib/journey';
 import { PageHeader } from '../components/PageHeader';
 import { Citations } from '../components/Citations';
 import { SaveButton } from '../components/SaveButton';
@@ -56,6 +58,7 @@ export default function AgenticPage() {
   const [remi, setRemi] = useState<RemiScore | null>(null);
   const [activeModules, setActiveModules] = useState<Set<string>>(new Set());
   const [question, setQuestion] = useState('');
+  const [journey, setJourney] = useState(false);
   const [traces, setTraces] = useState<TurnTrace[]>([]);
   const [showInspect, setShowInspect] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -154,7 +157,18 @@ export default function AgenticPage() {
               <p className="text-sm text-ink-500">No grounded answer — try rephrasing the question.</p>
             )}
             <Citations citations={citations} />
+            {clean && !running && chunks.length > 0 && (
+              <div className="mt-3">
+                <button onClick={() => setJourney(true)}
+                  className="group inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
+                  <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
+                </button>
+              </div>
+            )}
           </div>
+          <AnswerJourney open={journey} query={question}
+            presetStops={fromChunks(chunks, citations.map((c) => c.resourceId || '').filter(Boolean))}
+            citedIds={citations.map((c) => c.resourceId || '').filter(Boolean)} onClose={() => setJourney(false)} />
 
           {/* Progressive disclosure: the machinery */}
           {(chunks.length > 0 || steps.length > 0 || !running) && (

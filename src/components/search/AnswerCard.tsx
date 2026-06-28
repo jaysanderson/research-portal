@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, Compass } from 'lucide-react';
 import { ask, isRefusal, type Citation, type CitationMark } from '../../lib/nuclia';
 import { renderWithCitations } from '../../lib/markdown';
 import { Citations } from '../Citations';
+import { AnswerJourney } from '../journey/AnswerJourney';
 import { friendlyError } from '../../lib/util';
 
 export function AnswerCard({ query, filters }: { query: string; filters: string[] }) {
@@ -10,6 +11,7 @@ export function AnswerCard({ query, filters }: { query: string; filters: string[
   const [citations, setCitations] = useState<Citation[]>([]);
   const [marks, setMarks] = useState<CitationMark[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [journey, setJourney] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -60,6 +62,16 @@ export function AnswerCard({ query, filters }: { query: string; filters: string[
             <p className="text-sm text-ink-500">No grounded answer for this query — try rephrasing, or browse the ranked results below.</p>
           )}
           <Citations citations={citations} />
+          {clean && !streaming && (
+            <div className="mt-3">
+              <button onClick={() => setJourney(true)}
+                className="group inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
+                <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
+              </button>
+            </div>
+          )}
+          <AnswerJourney open={journey} query={query} filters={filters}
+            citedIds={citations.map((c) => c.resourceId || '').filter(Boolean)} onClose={() => setJourney(false)} />
         </>
       )}
     </div>

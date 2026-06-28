@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Square, Sparkles, User } from 'lucide-react';
+import { Send, Square, Sparkles, User, Compass } from 'lucide-react';
 import { renderMarkdown, renderWithCitations } from '../../lib/markdown';
 import { isRefusal } from '../../lib/nuclia';
 import { Citations } from '../Citations';
+import { AnswerJourney } from '../journey/AnswerJourney';
 import type { ChatMessage } from '../../lib/useChat';
 
 export function ChatThread({ messages, busy, onSend, onStop, placeholder, compact, examples }: {
@@ -15,6 +16,7 @@ export function ChatThread({ messages, busy, onSend, onStop, placeholder, compac
   examples?: string[];
 }) {
   const [input, setInput] = useState('');
+  const [journey, setJourney] = useState<{ query: string; citedIds: string[] } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -38,7 +40,11 @@ export function ChatThread({ messages, busy, onSend, onStop, placeholder, compac
             )}
           </div>
         ) : (
-          messages.map((m, i) => <Bubble key={i} m={m} compact={compact} />)
+          messages.map((m, i) => (
+            <Bubble key={i} m={m} compact={compact}
+              question={i > 0 && messages[i - 1].role === 'user' ? messages[i - 1].content : ''}
+              onJourney={setJourney} />
+          ))
         )}
         <div ref={endRef} />
       </div>
@@ -55,12 +61,14 @@ export function ChatThread({ messages, busy, onSend, onStop, placeholder, compac
           )}
         </div>
       </form>
+      <AnswerJourney open={!!journey} query={journey?.query || ''} citedIds={journey?.citedIds || []} onClose={() => setJourney(null)} />
     </div>
   );
 }
 
-function Bubble({ m, compact }: { m: ChatMessage; compact?: boolean }) {
+function Bubble({ m, compact, question, onJourney }: { m: ChatMessage; compact?: boolean; question?: string; onJourney?: (j: { query: string; citedIds: string[] }) => void }) {
   const isUser = m.role === 'user';
+  const canJourney = !isUser && !compact && !m.streaming && !!m.content && !isRefusal(m.content) && !!m.citations?.length && !!question;
   return (
     <div className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isUser ? 'bg-ink-200 text-ink-600' : 'bg-brand-600 text-white'}`}>
@@ -78,6 +86,12 @@ function Bubble({ m, compact }: { m: ChatMessage; compact?: boolean }) {
               </div>
             )}
             {m.citations && <Citations citations={m.citations} />}
+            {canJourney && (
+              <button onClick={() => onJourney!({ query: question!, citedIds: (m.citations || []).map((c) => c.resourceId || '').filter(Boolean) })}
+                className="group mt-3 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
+                <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
+              </button>
+            )}
           </>
         )}
       </div>
