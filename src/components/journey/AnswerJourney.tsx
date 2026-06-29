@@ -8,7 +8,7 @@ import { useCurrentKb, useKbImage } from '../../lib/hooks';
 import { cleanTitle, gradientFor } from '../../lib/util';
 import { renderMarkdown } from '../../lib/markdown';
 
-const DWELL_MS = 4600; // auto-advance dwell after the relation finishes streaming
+const DWELL_MS = 5600; // auto-advance dwell after the relation finishes (covers the slow read-scroll)
 const safeHost = (u?: string) => { if (!u) return ''; try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 const dotColor = (s: number) => (s >= 0.7 ? 'bg-brand-400' : s >= 0.4 ? 'bg-accent-400' : 'bg-data-clay');
 
@@ -23,13 +23,13 @@ export function AnswerJourney({ open, query, filters = [], citedIds = [], preset
   const [idx, setIdx] = useState(-1);          // -1 intro · 0..n-1 stops · n outro
   const [rel, setRel] = useState<Record<number, Rel>>({});
   const [playing, setPlaying] = useState(true);
-  const [paused, setPaused] = useState(false); // hover-pause
   const [progress, setProgress] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Build the stops on open.
   useEffect(() => {
     if (!open) return;
-    setLoading(true); setStops([]); setIdx(-1); setRel({}); setPlaying(true); setPaused(false); setProgress(0);
+    setLoading(true); setStops([]); setIdx(-1); setRel({}); setPlaying(true); setProgress(0);
     let active = true;
     (async () => {
       try {
@@ -73,16 +73,39 @@ export function AnswerJourney({ open, query, filters = [], citedIds = [], preset
 
   const curDone = atStop && rel[idx]?.done;
 
+  // Reset scroll to the top whenever we land on a new stop.
+  useEffect(() => { if (contentRef.current) contentRef.current.scrollTop = 0; }, [idx]);
+
+  // Once a stop's relation has streamed in, slowly scroll through the text to the
+  // bottom (cinematic reveal). Cancels if the viewer scrolls manually.
+  useEffect(() => {
+    if (!atStop || !curDone) return;
+    const el = contentRef.current; if (!el) return;
+    const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const target = el.scrollHeight - el.clientHeight;
+    if (reduce || target <= el.scrollTop + 8) return;
+    const start = el.scrollTop; const t0 = performance.now(); const dur = 3800;
+    let raf = 0; let cancelled = false;
+    const cancel = () => { cancelled = true; };
+    el.addEventListener('wheel', cancel, { passive: true });
+    el.addEventListener('pointerdown', cancel, { passive: true });
+    const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
+    const step = (t: number) => { if (cancelled) return; const k = Math.min((t - t0) / dur, 1); el.scrollTop = start + (target - start) * ease(k); if (k < 1) raf = requestAnimationFrame(step); };
+    raf = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(raf); el.removeEventListener('wheel', cancel); el.removeEventListener('pointerdown', cancel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, curDone, atStop]);
+
   // Auto-advance: intro → first stop; each stop dwells after its relation finishes.
   useEffect(() => {
-    if (!open || !playing || paused) return;
+    if (!open || !playing) return;
     if (idx === -1) { const t = setTimeout(() => goTo(0), 2400); return () => clearTimeout(t); }
     if (!atStop || !curDone) { setProgress(0); return; }
     let elapsed = 0; const STEP = 60;
     const t = setInterval(() => { elapsed += STEP; setProgress(Math.min(elapsed / DWELL_MS, 1)); if (elapsed >= DWELL_MS) { clearInterval(t); next(); } }, STEP);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, open, playing, paused, curDone]);
+  }, [idx, open, playing, curDone]);
 
   // Keyboard controls.
   useEffect(() => {
@@ -105,7 +128,7 @@ export function AnswerJourney({ open, query, filters = [], citedIds = [], preset
   return createPortal((
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-950/85 p-4 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-ink-900 text-white shadow-lg ring-1 ring-white/10"
-        onClick={(e) => e.stopPropagation()} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+        onClick={(e) => e.stopPropagation()}>
 
         {/* top bar */}
         <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4 py-3">
@@ -113,12 +136,12 @@ export function AnswerJourney({ open, query, filters = [], citedIds = [], preset
             <Compass size={13} className="text-brand-300" /> {atStop ? `Source ${idx + 1} of ${n}` : 'Answer journey'}
           </span>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'} className="rounded-full bg-black/40 p-1.5 text-white/80 backdrop-blur-sm hover:text-white">{playing && !paused ? <Pause size={15} /> : <Play size={15} />}</button>
+            <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'} className="rounded-full bg-black/40 p-1.5 text-white/80 backdrop-blur-sm hover:text-white">{playing ? <Pause size={15} /> : <Play size={15} />}</button>
             <button onClick={onClose} aria-label="Close" className="rounded-full bg-black/40 p-1.5 text-white/80 backdrop-blur-sm hover:text-white"><X size={15} /></button>
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex h-80 flex-col items-center justify-center gap-3 text-white/70"><Loader2 size={26} className="animate-spin text-brand-300" /><p className="text-sm">Tracing the grounding…</p></div>
           ) : n === 0 ? (
