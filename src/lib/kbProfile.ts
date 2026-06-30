@@ -13,7 +13,7 @@ export interface KbProfile {
 }
 
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — aggressive (client side)
-const VERSION = 2; // bumped: invalidate caches poisoned by the wrong-KB fetch bug
+const VERSION = 3; // bumped again to flush any caches poisoned before the per-KB-fetch fix
 const keyFor = (kbId: string) => `rp_kbprofile_${VERSION}_${kbId}`;
 const mem = new Map<string, KbProfile>();
 
@@ -37,8 +37,10 @@ function writeProfileCache(kbId: string, data: KbProfile) {
 /** Seed the client cache directly (used after the setup wizard writes a profile). */
 export function setProfileCache(kbId: string, data: KbProfile) { writeProfileCache(kbId, data); }
 
-export async function generateProfile(kbId: string, opts: { force?: boolean; signal?: AbortSignal } = {}): Promise<KbProfile> {
-  if (!opts.force) { const c = readProfileCache(kbId); if (c) return c; }
+export async function generateProfile(kbId: string, opts: { force?: boolean; revalidate?: boolean; signal?: AbortSignal } = {}): Promise<KbProfile> {
+  // `revalidate` bypasses the (possibly stale/poisoned) client cache but still uses the
+  // server's cached profile (no ?force) — cheap, and self-heals a wrong cache entry.
+  if (!opts.force && !opts.revalidate) { const c = readProfileCache(kbId); if (c) return c; }
   // Fetch with headers for THIS specific KB (not the globally-selected one) so the
   // profile can never be for a different box than the one it's cached/displayed under.
   const res = await fetch(`/api/profile${opts.force ? '?force=1' : ''}`, { headers: headersForKb({ id: kbId }), signal: opts.signal });

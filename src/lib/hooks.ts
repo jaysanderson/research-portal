@@ -48,11 +48,13 @@ export function useKbProfile(): { profile: KbProfile | null; loading: boolean } 
   const [loading, setLoading] = useState(false);
   useEffect(() => {
     if (!kb?.id || !kb.connected) { setProfile(null); return; }
+    // Paint the cached copy instantly, but ALWAYS revalidate against the (server-cached)
+    // profile for this exact KB so a stale/wrong cache can never linger after a switch.
     const cached = readProfileCache(kb.id);
-    if (cached) { setProfile(cached); return; }
+    setProfile(cached);
+    setLoading(!cached);
     let active = true; const ctrl = new AbortController();
-    setProfile(null); setLoading(true);
-    generateProfile(kb.id, { signal: ctrl.signal })
+    generateProfile(kb.id, { revalidate: true, signal: ctrl.signal })
       .then((p) => active && setProfile(p)).catch(() => {}).finally(() => active && setLoading(false));
     return () => { active = false; ctrl.abort(); };
   }, [kb?.id, kb?.connected]);
