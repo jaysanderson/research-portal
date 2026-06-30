@@ -13,7 +13,7 @@ export interface KbProfile {
 }
 
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days — aggressive (client side)
-const VERSION = 3; // bumped again to flush any caches poisoned before the per-KB-fetch fix
+const VERSION = 4; // bumped to flush caches poisoned by the cross-KB HTTP-cache bug
 const keyFor = (kbId: string) => `rp_kbprofile_${VERSION}_${kbId}`;
 const mem = new Map<string, KbProfile>();
 
@@ -43,7 +43,11 @@ export async function generateProfile(kbId: string, opts: { force?: boolean; rev
   if (!opts.force && !opts.revalidate) { const c = readProfileCache(kbId); if (c) return c; }
   // Fetch with headers for THIS specific KB (not the globally-selected one) so the
   // profile can never be for a different box than the one it's cached/displayed under.
-  const res = await fetch(`/api/profile${opts.force ? '?force=1' : ''}`, { headers: headersForKb({ id: kbId }), signal: opts.signal });
+  // `cache: 'no-store'` + a per-KB cache-buster defeat any HTTP cache keyed on the URL
+  // alone (the KB is in the x-kb header) — otherwise one box's profile leaks to others.
+  const qs = new URLSearchParams({ for: kbId });
+  if (opts.force) qs.set('force', '1');
+  const res = await fetch(`/api/profile?${qs.toString()}`, { headers: headersForKb({ id: kbId }), cache: 'no-store', signal: opts.signal });
   if (!res.ok) throw new Error(`profile -> ${res.status}`);
   const object = await res.json();
   const clean: KbProfile = {

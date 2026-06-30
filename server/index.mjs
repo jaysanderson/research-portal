@@ -709,7 +709,10 @@ app.get('/api/profile', async (req, res) => {
   const force = req.query.force === '1';
   const cached = profileCache.get(key);
   if (!force && cached && Date.now() - cached.ts < PROFILE_TTL) {
-    res.set('Cache-Control', 'public, max-age=86400');
+    // NB: must NOT be browser-cacheable. The KB is selected by the x-kb header, not the
+    // URL, so a shared/public cache keyed on the URL alone would serve one box's profile
+    // for every box. The server-side profileCache (+ volume) already makes this fast.
+    res.set('Cache-Control', 'no-store');
     return res.json(cached.data);
   }
   try {
@@ -717,7 +720,10 @@ app.get('/api/profile', async (req, res) => {
     const data = await profileInflight.get(key);
     profileCache.set(key, { data, ts: Date.now() });
     saveProfiles();
-    res.set('Cache-Control', 'public, max-age=86400');
+    // NB: must NOT be browser-cacheable. The KB is selected by the x-kb header, not the
+    // URL, so a shared/public cache keyed on the URL alone would serve one box's profile
+    // for every box. The server-side profileCache (+ volume) already makes this fast.
+    res.set('Cache-Control', 'no-store');
     res.json(data);
   } catch (err) {
     res.status(502).json({ detail: 'Profile generation failed', error: String(err).slice(0, 160) });
