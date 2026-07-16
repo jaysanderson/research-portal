@@ -168,23 +168,27 @@ export function vendorFilter(labelset: string, label: string) {
 export interface ProblemResource { id: string; title: string; url?: string; status: string }
 export interface SourceHealth { counts: Record<string, number>; total: number; problems: ProblemResource[] }
 
-/** One pass over the whole KB: status counts + the non-PROCESSED resources (drillable). */
+/** Status counts (from the /metadata.status facet — one call, exact) + the drillable
+ *  list of non-PROCESSED resources. The old per-page walk read metadata.status off the
+ *  catalog rows, but /catalog rows don't carry it, so every resource looked un-indexed
+ *  (0%). The faceted count is authoritative; we then fetch only the problem rows. */
 export async function getSourceHealth(): Promise<SourceHealth> {
+  const data = await kb<any>('catalog', { query: { faceted: ['/metadata.status'], page_size: 0 } });
+  const node = (data.fulltext?.facets || data.facets || {})['/metadata.status'] || {};
   const counts: Record<string, number> = {};
+  for (const [tag, count] of Object.entries(node)) counts[tag.split('/').pop() || tag] = count as number;
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  // Pull the actual non-PROCESSED resources so the list is drillable (cap per status).
   const problems: ProblemResource[] = [];
-  let total = 0;
-  for (let page = 0; page < 40; page++) {
-    const data = await kb<any>('catalog', { query: { page_number: page, page_size: 200, show: ['basic', 'origin'] } });
-    const res = data.resources || {};
-    const keys = Object.keys(res);
-    if (!keys.length) break;
-    for (const k of keys) {
-      total++;
-      const s = res[k]?.metadata?.status || 'PROCESSED';
-      counts[s] = (counts[s] || 0) + 1;
-      if (s !== 'PROCESSED') problems.push({ id: k, title: res[k].title || k, url: res[k].origin?.url, status: s });
-    }
-    if (keys.length < 200) break;
+  const badStatuses = Object.keys(counts).filter((s) => s !== 'PROCESSED' && counts[s] > 0);
+  for (const status of badStatuses) {
+    try {
+      const d = await kb<any>('catalog', { query: { filters: [`/metadata.status/${status}`], page_size: 50, show: ['basic', 'origin'] } });
+      for (const [id, r] of Object.entries<any>(d.resources || {})) {
+        problems.push({ id, title: r.title || id, url: r.origin?.url, status });
+      }
+    } catch { /* a status with no drill is still counted above */ }
   }
   return { counts, total, problems };
 }
@@ -193,12 +197,25 @@ export async function getStatusCounts(): Promise<Record<string, number>> {
   return (await getSourceHealth()).counts;
 }
 
+// Cross-encoder reranker (ARAG /predict) — reorders the fused candidate set by true
+// query-passage relevance. `window` processes more candidates than we display so the
+// merge quality is higher. Shared by find() and ask().
+export const RERANKER = { name: 'predict', window: 50 } as const;
+// RAG strategies expand each matched paragraph into richer LLM context: hierarchy
+// prepends the resource title/summary, neighbouring_paragraphs adds surrounding text.
+// Directly fixes thin single-paragraph context (what ANSWER_SYSTEM_PROMPT was patching).
+export const RAG_STRATEGIES = [
+  { name: 'neighbouring_paragraphs', before: 2, after: 2 },
+  { name: 'hierarchy' },
+] as const;
+
 export async function find(query: string, opts: { filters?: string[]; pageSize?: number; mode?: RetrievalMode } = {}): Promise<FindResult[]> {
   const body: any = {
     query,
     features: FEATURES[opts.mode || 'hybrid'],
     page_size: opts.pageSize ?? 20,
     show: ['basic', 'origin'],
+    reranker: RERANKER,
   };
   if (opts.filters?.length) body.filters = opts.filters;
   const data = await kb<any>('find', { method: 'POST', body: JSON.stringify(body) });
@@ -253,6 +270,8 @@ export async function* ask(
     citations: true,
     show: ['basic', 'origin'],
     prompt: { system: ANSWER_SYSTEM_PROMPT },
+    reranker: RERANKER,
+    rag_strategies: RAG_STRATEGIES,
   };
   if (opts.filters?.length) body.filters = opts.filters;
   if (opts.context?.length) body.context = opts.context;
@@ -310,6 +329,103 @@ export async function* ask(
     throw err;
    }
   }
+}
+
+// ---------------- Suggest (typeahead) ----------------
+
+export interface Suggestion { text: string; kind: 'entity' | 'phrase' }
+
+/** ARAG /suggest: autocomplete over indexed paragraphs + extracted entities. */
+export async function suggest(query: string, opts: { signal?: AbortSignal } = {}): Promise<Suggestion[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const data = await kb<any>('suggest', { query: { query: q }, signal: opts.signal });
+  const out: Suggestion[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string, kind: 'entity' | 'phrase') => {
+    const t = String(raw || '').replace(/\s+/g, ' ').trim();
+    const key = t.toLowerCase();
+    if (t.length < 2 || t.length > 72 || seen.has(key)) return;
+    seen.add(key); out.push({ text: t, kind });
+  };
+  // Extracted entities first — short and clean. Shape varies across versions.
+  const ents = data.entities;
+  const entList = Array.isArray(ents?.entities) ? ents.entities : Array.isArray(ents) ? ents : [];
+  for (const e of entList) push(typeof e === 'string' ? e : e?.value || e?.family || '', 'entity');
+  // Then the leading phrase of each matched paragraph.
+  for (const p of (data.paragraphs?.results || [])) {
+    const first = String(p?.text || '').split('\n').map((s: string) => s.trim()).find((s: string) => s.length > 3);
+    if (first) push(first.length > 64 ? first.slice(0, 64) : first, 'phrase');
+  }
+  return out.slice(0, 8);
+}
+
+// ---------------- REMi answer-quality (ARAG /predict/remi) ----------------
+
+export interface RemiResult { answerRelevance: number; contextRelevance: number; groundedness: number }
+
+const norm5 = (n: unknown): number => {
+  const v = typeof n === 'number' ? n : Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(1, v > 1 ? v / 5 : v)); // scores come back 0–5 (sometimes 0–1)
+};
+const maxOf = (a: unknown): number => (Array.isArray(a) ? a.reduce((m: number, x) => Math.max(m, norm5(typeof x === 'object' && x ? (x as any).score ?? x : x)), 0) : norm5(a));
+
+/** Evaluate a completed answer with REMi (relevance / context-relevance / groundedness).
+ *  Routed to the NUA predict endpoint via /api/predict (keys stay server-side). */
+export async function scoreRemi(input: { question: string; answer: string; contexts: string[] }): Promise<RemiResult | null> {
+  const contexts = input.contexts.filter(Boolean).slice(0, 20);
+  if (!input.answer.trim() || !contexts.length) return null;
+  const res = await fetch('/api/predict/remi', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...kbHeaders() },
+    body: JSON.stringify({ user_id: 'research-portal', question: input.question, answer: input.answer, contexts }),
+  });
+  if (!res.ok) throw new Error(`remi -> ${res.status}`);
+  const d = await res.json();
+  return {
+    answerRelevance: norm5(d.answer_relevance?.score ?? d.answer_relevance),
+    contextRelevance: maxOf(d.context_relevance),
+    groundedness: maxOf(d.groundedness),
+  };
+}
+
+// ---------------- Knowledge graph (real extracted entity relations) ----------------
+
+export interface GraphNode { id: string; label: string; group: string; weight: number }
+export interface GraphEdge { source: string; target: string; label?: string; weight: number }
+export interface RelationGraph { nodes: GraphNode[]; edges: GraphEdge[] }
+
+/** Real entity-relationship graph from ARAG's `relations` feature: the platform's
+ *  extracted entities + labeled relations (e.g. Adobe —developer→ AEM) around a seed
+ *  query. This is genuine GraphRAG data, not classification co-occurrence. */
+export async function relationGraph(query: string, opts: { signal?: AbortSignal } = {}): Promise<RelationGraph> {
+  const body = { query, features: ['keyword', 'semantic', 'relations'], page_size: 10, show: ['basic'] };
+  const data = await kb<any>('find', { method: 'POST', body: JSON.stringify(body), signal: opts.signal });
+  const entities: Record<string, any> = data.relations?.entities || {};
+  const nodes = new Map<string, GraphNode>();
+  const edges = new Map<string, GraphEdge>();
+  const addNode = (label: string, group: string) => {
+    const id = label;
+    const n = nodes.get(id);
+    if (n) { n.weight += 1; if (group && group !== 'entity') n.group = group; }
+    else nodes.set(id, { id, label, group: group || 'entity', weight: 1 });
+  };
+  for (const [source, info] of Object.entries(entities)) {
+    const rels = info?.related_to || info?.relations || [];
+    addNode(source, 'entity');
+    for (const r of rels) {
+      const target = String(r?.entity || '').trim();
+      if (!target || target === source) continue;
+      addNode(target, r?.entity_subtype || r?.entity_type || 'entity');
+      const [a, b] = r?.direction === 'in' ? [target, source] : [source, target];
+      const key = `${a}→${b}:${r?.relation_label || ''}`;
+      const e = edges.get(key);
+      if (e) e.weight += 1;
+      else edges.set(key, { source: a, target: b, label: r?.relation_label || undefined, weight: 1 });
+    }
+  }
+  return { nodes: [...nodes.values()], edges: [...edges.values()] };
 }
 
 // ---------------- Ingestion (Sprint 1) ----------------
@@ -418,7 +534,7 @@ export async function askStructured<T = any>(
   // from the retrieval event (the resources the answer was grounded in).
   // max_tokens must be generous: structured JSON for matrices/briefings is large
   // and the default cap triggers a 412 "Error generating json: max_tokens".
-  const body: any = { query, features: ['keyword', 'semantic'], answer_json_schema: schema, show: ['basic', 'origin'], max_tokens: 4096 };
+  const body: any = { query, features: ['keyword', 'semantic'], answer_json_schema: schema, show: ['basic', 'origin'], max_tokens: 4096, reranker: RERANKER };
   if (opts.filters?.length) body.filters = opts.filters;
 
   let object: any = null;

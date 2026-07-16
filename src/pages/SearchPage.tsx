@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, FileSearch } from 'lucide-react';
-import { find, type FindResult, type RetrievalMode } from '../lib/nuclia';
+import { Search as SearchIcon, Loader2, FileSearch, Tag } from 'lucide-react';
+import { find, suggest, type FindResult, type RetrievalMode, type Suggestion } from '../lib/nuclia';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { AnswerCard } from '../components/search/AnswerCard';
 import { ResultCard } from '../components/search/ResultCard';
@@ -25,6 +25,20 @@ export default function SearchPage() {
   const { profile } = useKbProfile();
   const examples = profile?.topics?.length ? profile.topics : FALLBACK_EXAMPLES;
 
+  // Typeahead: ARAG /suggest over indexed paragraphs + extracted entities.
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  useEffect(() => {
+    const q = input.trim();
+    if (q.length < 2 || q === query) { setSuggestions([]); return; }
+    let active = true; const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      suggest(q, { signal: ctrl.signal }).then((s) => { if (active) { setSuggestions(s); setShowSuggest(true); } }).catch(() => {});
+    }, 180);
+    return () => { active = false; ctrl.abort(); clearTimeout(t); };
+  }, [input, query]);
+  const pick = (text: string) => { setInput(text); setQuery(text); setParams({ q: text }); setShowSuggest(false); };
+
   const run = useCallback(async (q: string, f: string[], m: RetrievalMode) => {
     if (!q.trim()) { setResults([]); return; }
     setLoading(true); setError(null);
@@ -34,7 +48,7 @@ export default function SearchPage() {
 
   useEffect(() => { run(query, filters, mode); }, [query, filters, mode, run]);
 
-  const submit = (e: React.FormEvent) => { e.preventDefault(); setQuery(input); setParams(input ? { q: input } : {}); };
+  const submit = (e: React.FormEvent) => { e.preventDefault(); setShowSuggest(false); setQuery(input); setParams(input ? { q: input } : {}); };
   const toggle = (f: string) => setFilters((x) => x.includes(f) ? x.filter((y) => y !== f) : [...x, f]);
   const related = Array.from(new Set(results.flatMap((r) => r.labels))).slice(0, 8);
 
@@ -44,7 +58,26 @@ export default function SearchPage() {
         <div className="relative flex-1">
           <SearchIcon size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
           <input autoFocus value={input} onChange={(e) => setInput(e.target.value)} aria-label="Search the knowledge base"
+            onFocus={() => suggestions.length && setShowSuggest(true)}
+            onBlur={() => setTimeout(() => setShowSuggest(false), 120)}
+            role="combobox" aria-expanded={showSuggest && suggestions.length > 0} aria-autocomplete="list" aria-controls="search-suggestions"
             placeholder={profile?.subject ? `Search ${profile.subject}…` : 'Search the knowledge base…'} className="input py-3 pl-10" />
+          {showSuggest && suggestions.length > 0 && (
+            <ul id="search-suggestions" role="listbox" className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-ink-200 bg-white py-1 shadow-lg animate-fade-in">
+              {suggestions.map((s) => (
+                <li key={`${s.kind}:${s.text}`} role="option" aria-selected={false}>
+                  <button type="button" onMouseDown={(e) => { e.preventDefault(); pick(s.text); }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink-700 hover:bg-ink-100">
+                    {s.kind === 'entity'
+                      ? <Tag size={13} className="shrink-0 text-accent-500" />
+                      : <SearchIcon size={13} className="shrink-0 text-ink-400" />}
+                    <span className="truncate">{s.text}</span>
+                    {s.kind === 'entity' && <span className="ml-auto rounded bg-accent-50 px-1.5 text-[10px] font-semibold text-accent-700">entity</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <button type="submit" className="btn-primary px-6">Search</button>
       </form>

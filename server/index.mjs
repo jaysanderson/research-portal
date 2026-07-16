@@ -314,6 +314,22 @@ app.use('/api/agent', rawBody, async (req, res) => {
   }
 });
 
+// NUA predict proxy (REMi answer-quality scoring, etc.): the predict endpoints live at
+// the zone root ({.../api/v1}/predict/*), a sibling of /kb/<id> — derive it from kb.base.
+// Keys stay server-side; the client just POSTs {question, answer, contexts}.
+app.use('/api/predict', rawBody, async (req, res) => {
+  const kb = getKb(req);
+  if (kbError(res, kb)) return;
+  const predictBase = kb.base.replace(/\/kb\/[^/]+\/?$/, '');
+  const subpath = req.path.replace(/^\/+/, '');
+  const target = `${predictBase}/predict/${subpath}${req._parsedUrl?.search || ''}`;
+  try {
+    await proxy(target, kb.readerKey, req, res);
+  } catch (err) {
+    if (!res.headersSent) res.status(502).json({ detail: 'Predict request failed', error: String(err) });
+  }
+});
+
 // Binary file upload -> {kb.base}/upload
 app.post('/api/upload', express.raw({ type: '*/*', limit: '300mb' }), async (req, res) => {
   const kb = getKb(req);

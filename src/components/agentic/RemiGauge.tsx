@@ -1,5 +1,3 @@
-import { Link } from 'react-router-dom';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
 import type { RemiScore } from '../../lib/agentic';
 
 function pct(v?: number) { if (v == null) return null; return v <= 1 ? Math.round(v * 100) : Math.round(v); }
@@ -17,27 +15,14 @@ function Bar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-export function RemiGauge({ remi, connected }: { remi: RemiScore | null; connected?: boolean }) {
-  // Agent connected but no REMi for this turn — neutral, not an invite.
-  if (!remi && connected) {
+export function RemiGauge({ remi }: { remi: RemiScore | null; connected?: boolean }) {
+  // REMi is scored live for every turn; a null here means the predict pass didn't run
+  // (e.g. no answer/context) — neutral, not an upsell.
+  if (!remi) {
     return (
       <div className="card p-4">
         <div className="mb-2 t-overline">REMi quality</div>
-        <p className="text-xs text-ink-500">Not reported for this turn.</p>
-      </div>
-    );
-  }
-  // No dead gauge: when REMi isn't available, invite the user to enable it.
-  if (!remi) {
-    return (
-      <div className="card border-brand-100 bg-brand-50/40 p-4">
-        <div className="mb-1.5 flex items-center gap-2 text-brand-700"><ShieldCheck size={15} /><span className="t-h3 text-brand-800">Answer quality scoring</span></div>
-        <p className="text-xs leading-relaxed text-ink-600">
-          Connect an ARAG Retrieval Agent to score every answer for <strong>relevance</strong> and <strong>groundedness</strong> (REMi), and to fan out across web, SQL, graph and MCP drivers.
-        </p>
-        <Link to="/settings" className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:text-brand-800">
-          How to enable <ArrowRight size={13} />
-        </Link>
+        <p className="text-xs text-ink-500">Not scored for this turn.</p>
       </div>
     );
   }
@@ -46,6 +31,7 @@ export function RemiGauge({ remi, connected }: { remi: RemiScore | null; connect
       <div className="mb-3 t-overline">REMi quality</div>
       <div className="space-y-3">
         <Bar label="Answer relevance" value={pct(remi.relevance)} />
+        <Bar label="Context relevance" value={pct(remi.contextRelevance)} />
         <Bar label="Groundedness" value={pct(remi.groundedness)} />
       </div>
     </div>

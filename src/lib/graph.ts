@@ -1,5 +1,5 @@
 export interface GraphNode { id: string; label: string; group: string; weight: number }
-export interface GraphEdge { source: string; target: string; weight: number }
+export interface GraphEdge { source: string; target: string; weight: number; label?: string }
 export interface GraphData { primary: string; secondary: string; nodes: GraphNode[]; edges: GraphEdge[] }
 
 import { kbHeaders } from './api';

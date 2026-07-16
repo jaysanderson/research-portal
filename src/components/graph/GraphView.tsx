@@ -4,16 +4,25 @@ import { Plus, Minus, Maximize2 } from 'lucide-react';
 import type { GraphData, GraphNode } from '../../lib/graph';
 
 interface SimNode extends GraphNode { x?: number; y?: number; fx?: number | null; fy?: number | null }
-interface SimEdge { source: SimNode; target: SimNode; weight: number }
+interface SimEdge { source: SimNode; target: SimNode; weight: number; label?: string }
+
+// Named-entity groups get distinct colors (entity-relations mode); taxonomy mode
+// falls back to primary=green / secondary=amber.
+const GROUP_COLORS: Record<string, string> = {
+  ORG: '#1A6A4F', PRODUCT: '#C8861A', PERSON: '#2563EB', GPE: '#9333EA', LOC: '#0891B2',
+  EVENT: '#DB2777', FAC: '#0D9488', NORP: '#7C3AED', WORK_OF_ART: '#CA8A04', LAW: '#B45309',
+  LANGUAGE: '#0EA5E9', DATE: '#64748B', TIME: '#64748B',
+};
 
 // Two-dimension graph: primary nodes green, secondary amber (whatever the
 // taxonomies are named for this KB). Labels are shown for the larger nodes and
 // revealed on hover for the rest, so the dense centre stays legible.
 
-export function GraphView({ data, onSelect, selected }: {
+export function GraphView({ data, onSelect, selected, edgeLabels }: {
   data: GraphData;
   onSelect: (node: GraphNode | null) => void;
   selected?: string | null;
+  edgeLabels?: boolean;
 }) {
   const ref = useRef<SVGSVGElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -28,7 +37,7 @@ export function GraphView({ data, onSelect, selected }: {
     const nodes: SimNode[] = data.nodes.map((n) => ({ ...n }));
     const idMap = new Map(nodes.map((n) => [n.id, n]));
     const edges: SimEdge[] = data.edges
-      .map((e) => ({ source: idMap.get(e.source)!, target: idMap.get(e.target)!, weight: e.weight }))
+      .map((e) => ({ source: idMap.get(e.source)!, target: idMap.get(e.target)!, weight: e.weight, label: e.label }))
       .filter((e) => e.source && e.target);
 
     // adjacency for hover highlighting
@@ -58,13 +67,21 @@ export function GraphView({ data, onSelect, selected }: {
     const link = g.append('g').attr('stroke', '#cbd5e1').selectAll('line').data(edges).join('line')
       .attr('stroke-width', (d) => ew(d.weight)).attr('stroke-opacity', 0.5);
 
+    // Relation labels on edges (entity-relations mode) — the "developer", "has part"
+    // etc. that make this a real knowledge graph rather than co-occurrence.
+    const edgeLabel = g.append('g').selectAll<SVGTextElement, SimEdge>('text')
+      .data(edgeLabels ? edges.filter((e) => e.label) : []).join('text')
+      .text((d) => d.label || '').attr('font-size', 8.5).attr('fill', '#64748b')
+      .attr('text-anchor', 'middle').attr('pointer-events', 'none')
+      .attr('paint-order', 'stroke').attr('stroke', '#fff').attr('stroke-width', 2.5).attr('opacity', 0.85);
+
     const node = g.append('g').selectAll<SVGGElement, SimNode>('g').data(nodes).join('g').style('cursor', 'pointer')
       .call(d3.drag<SVGGElement, SimNode>()
         .on('start', (ev, d) => { if (!ev.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
         .on('drag', (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
         .on('end', (ev, d) => { if (!ev.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }) as any);
 
-    const colorFor = (grp: string) => (grp === data.primary ? '#1A6A4F' : '#C8861A');
+    const colorFor = (grp: string) => GROUP_COLORS[grp] || (grp === data.primary ? '#1A6A4F' : '#C8861A');
     node.append('circle')
       .attr('r', (d) => r(d.weight))
       .attr('fill', (d) => colorFor(d.group))
@@ -95,11 +112,12 @@ export function GraphView({ data, onSelect, selected }: {
 
     sim.on('tick', () => {
       link.attr('x1', (d) => d.source.x!).attr('y1', (d) => d.source.y!).attr('x2', (d) => d.target.x!).attr('y2', (d) => d.target.y!);
+      edgeLabel.attr('x', (d) => ((d.source.x! + d.target.x!) / 2)).attr('y', (d) => ((d.source.y! + d.target.y!) / 2));
       node.attr('transform', (d) => `translate(${d.x},${d.y})`);
     });
 
     return () => { sim.stop(); };
-  }, [data, onSelect]);
+  }, [data, onSelect, edgeLabels]);
 
   // highlight selected
   useEffect(() => {

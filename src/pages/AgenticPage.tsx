@@ -123,7 +123,7 @@ export default function AgenticPage() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <PageHeader title="Agentic retrieval"
-        description={`Ask a complex question and get a grounded, cited answer. Open “Show reasoning” to inspect the full pipeline.${aragOn ? ' Multi-driver agent active.' : ' KB-pipeline mode — connect an ARAG agent for multi-driver + REMi.'}`} />
+        description={`Ask a complex question and get a grounded, cited answer. Open “Show reasoning” to inspect the full pipeline.${aragOn ? ' Multi-driver agent active.' : ' KB-pipeline mode with live REMi scoring — connect an ARAG agent to add multi-driver fan-out (web, SQL, graph, MCP).'}`} />
 
       <form onSubmit={(e) => { e.preventDefault(); run((inputRef.current?.value ?? input).trim()); }} className="flex gap-2">
         <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} aria-label="Ask an agentic question"

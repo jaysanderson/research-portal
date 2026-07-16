@@ -6,7 +6,7 @@
 // telemetry: retrieval (context chunks), streaming generation, token consumption,
 // and timings. Every signal below is real, not simulated.
 import { streamNdjson } from './api';
-import { ANSWER_SYSTEM_PROMPT, type Citation } from './nuclia';
+import { ANSWER_SYSTEM_PROMPT, RERANKER, RAG_STRATEGIES, scoreRemi, type Citation } from './nuclia';
 
 export type StageId = 'preprocess' | 'retrieve' | 'generate' | 'evaluate';
 
@@ -26,7 +26,7 @@ export interface Consumption {
   totalSec?: number;
 }
 
-export interface RemiScore { relevance?: number; groundedness?: number }
+export interface RemiScore { relevance?: number; contextRelevance?: number; groundedness?: number }
 
 export interface PipelineStep {
   id: string;
@@ -94,11 +94,15 @@ export async function* askAgentic(
     citations: true,
     show: ['basic', 'origin'],
     prompt: { system: ANSWER_SYSTEM_PROMPT },
+    reranker: RERANKER,
+    rag_strategies: RAG_STRATEGIES,
   };
   if (opts.filters?.length) body.filters = opts.filters;
   if (opts.context?.length) body.context = opts.context;
 
   const resourceMap: Record<string, { title: string; url?: string }> = {};
+  let fullAnswer = '';
+  let lastChunks: ContextChunk[] = [];
   yield { kind: 'start' };
   yield { kind: 'stage', stage: 'preprocess', detail: 'Rephrasing & planning retrieval' };
 
@@ -111,12 +115,14 @@ export async function* askAgentic(
           const resources = item.results?.resources || {};
           for (const [rid, r] of Object.entries<any>(resources)) resourceMap[rid] = { title: r.title || rid, url: r.origin?.url };
           yield { kind: 'stage', stage: 'retrieve', detail: `${Object.keys(resources).length} sources retrieved` };
-          yield { kind: 'chunks', chunks: parseChunks(resources) };
+          lastChunks = parseChunks(resources);
+          yield { kind: 'chunks', chunks: lastChunks };
           break;
         }
         case 'answer':
           if (typeof item.text === 'string') {
             if (!answerStarted) { answerStarted = true; yield { kind: 'stage', stage: 'generate', detail: 'Synthesizing grounded answer' }; }
+            fullAnswer += item.text;
             yield { kind: 'answer', text: item.text };
           }
           break;
@@ -147,6 +153,15 @@ export async function* askAgentic(
           yield { kind: 'stage', stage: 'evaluate', detail: 'Validating & finalizing' };
           break;
       }
+    }
+    // Real answer-quality scoring (REMi) over the answer + retrieved context.
+    // Non-fatal: a predict hiccup must not fail the turn.
+    if (fullAnswer.trim() && lastChunks.length && !opts.signal?.aborted) {
+      yield { kind: 'stage', stage: 'evaluate', detail: 'Scoring answer quality (REMi)' };
+      try {
+        const remi = await scoreRemi({ question, answer: fullAnswer, contexts: lastChunks.map((c) => c.text).filter(Boolean) });
+        if (remi) yield { kind: 'remi', remi: { relevance: remi.answerRelevance, contextRelevance: remi.contextRelevance, groundedness: remi.groundedness } };
+      } catch { /* predict unavailable — skip quietly */ }
     }
     yield { kind: 'done' };
   } catch (err) {
