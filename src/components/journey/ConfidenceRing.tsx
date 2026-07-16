@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const color = (s: number) => (s >= 0.7 ? '#237D5E' : s >= 0.4 ? '#C8861A' : '#B5543F');
+const color = (s: number) => (s >= 0.7 ? '#10B981' : s >= 0.4 ? '#F0A81E' : '#EF6A4D');
 const labelFor = (s: number) => (s >= 0.7 ? 'Strong match' : s >= 0.4 ? 'Moderate match' : 'Weak match');
 
 /** Animated SVG confidence ring that draws to `score` (0–1) and counts the % up. */

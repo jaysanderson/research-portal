@@ -218,8 +218,8 @@ function TaxonomyGraph({ kb, GV, selected, setSelected }: {
             <div className="flex h-full items-center justify-center text-ink-400">No connections found between these taxonomies.</div>
           )}
           <div className="absolute bottom-3 left-3 flex gap-3 rounded-lg bg-white/90 px-3 py-1.5 text-xs shadow-sm">
-            <Legend color="#1A6A4F" label={primaryTitle} />
-            <Legend color="#C8861A" label={dims.find((d) => d.id === secondary)?.title || secondary} />
+            <Legend color="#2F31D8" label={primaryTitle} />
+            <Legend color="#F0A81E" label={dims.find((d) => d.id === secondary)?.title || secondary} />
           </div>
         </div>
 

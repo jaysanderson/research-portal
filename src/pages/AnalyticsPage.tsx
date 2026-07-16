@@ -8,7 +8,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
 import { useCurrentKb } from '../lib/hooks';
 
-const COLORS = ['#1A6A4F', '#C8861A', '#B5543F', '#5B7B8A', '#7C5C8A', '#0e7490'];
+const COLORS = ['#2F31D8', '#F0A81E', '#10B981', '#8B5CF6', '#0EA5E9', '#EF6A4D'];
 
 export default function AnalyticsPage() {
   const kb = useCurrentKb();
@@ -54,7 +54,7 @@ export default function AnalyticsPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card title="Source health">
           <div className="mb-3 flex items-center gap-2 text-sm"><span className="font-bold text-brand-600">{pct}%</span><span className="text-ink-500">indexed · {total.toLocaleString()} resources</span></div>
-          <BarList color="#237D5E" data={Object.entries(counts).sort((a, b) => b[1] - a[1])} />
+          <BarList color="#2F31D8" data={Object.entries(counts).sort((a, b) => b[1] - a[1])} />
           {problems.length > 0 ? (
             <div className="mt-3 border-t border-ink-100 pt-3">
               <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700"><AlertTriangle size={13} /> {problems.length} need attention</div>

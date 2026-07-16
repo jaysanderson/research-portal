@@ -9,9 +9,9 @@ interface SimEdge { source: SimNode; target: SimNode; weight: number; label?: st
 // Named-entity groups get distinct colors (entity-relations mode); taxonomy mode
 // falls back to primary=green / secondary=amber.
 const GROUP_COLORS: Record<string, string> = {
-  ORG: '#1A6A4F', PRODUCT: '#C8861A', PERSON: '#2563EB', GPE: '#9333EA', LOC: '#0891B2',
-  EVENT: '#DB2777', FAC: '#0D9488', NORP: '#7C3AED', WORK_OF_ART: '#CA8A04', LAW: '#B45309',
-  LANGUAGE: '#0EA5E9', DATE: '#64748B', TIME: '#64748B',
+  ORG: '#2F31D8', PRODUCT: '#F0A81E', PERSON: '#8B5CF6', GPE: '#EF6A4D', LOC: '#0EA5E9',
+  EVENT: '#EC4899', FAC: '#10B981', NORP: '#6366F1', WORK_OF_ART: '#F59E0B', LAW: '#0D9488',
+  LANGUAGE: '#06B6D4', DATE: '#64748B', TIME: '#64748B',
 };
 
 // Two-dimension graph: primary nodes green, secondary amber (whatever the
@@ -81,7 +81,7 @@ export function GraphView({ data, onSelect, selected, edgeLabels }: {
         .on('drag', (ev, d) => { d.fx = ev.x; d.fy = ev.y; })
         .on('end', (ev, d) => { if (!ev.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }) as any);
 
-    const colorFor = (grp: string) => GROUP_COLORS[grp] || (grp === data.primary ? '#1A6A4F' : '#C8861A');
+    const colorFor = (grp: string) => GROUP_COLORS[grp] || (grp === data.primary ? '#2F31D8' : '#F0A81E');
     node.append('circle')
       .attr('r', (d) => r(d.weight))
       .attr('fill', (d) => colorFor(d.group))

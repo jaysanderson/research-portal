@@ -31,16 +31,16 @@ export function KbSwitcher() {
   return (
     <div ref={ref} className="relative px-3 pb-2">
       <button onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}
-        className="flex w-full items-center gap-2.5 rounded-md border border-[#272d36] bg-[#1a1f27] px-3 py-2 text-left transition-colors hover:border-[#34404e]">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-600/20 text-brand-300"><Database size={15} /></span>
+        className="flex w-full items-center gap-2.5 rounded-xl border border-white/10 bg-gradient-to-br from-brand-800 to-brand-950 px-3 py-2.5 text-left shadow-sm transition-colors hover:border-white/20">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-brand-200"><Database size={15} /></span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13px] font-semibold text-white">{current?.name || 'Knowledge Box'}</span>
-          <span className="flex items-center gap-1.5 text-[11px] text-[#8a93a0]">
-            <span className={`h-1.5 w-1.5 rounded-full ${current?.connected ? 'bg-brand-400' : 'bg-amber-400'}`} />
+          <span className="flex items-center gap-1.5 text-[11px] text-brand-200/70">
+            <span className={`h-1.5 w-1.5 rounded-full ${current?.connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
             {current?.connected ? 'Connected' : 'Offline'}
           </span>
         </span>
-        <ChevronsUpDown size={14} className="shrink-0 text-[#8a93a0]" />
+        <ChevronsUpDown size={14} className="shrink-0 text-brand-200/70" />
       </button>
 
       {open && (

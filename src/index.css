@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: light;
-  --shadow-focus: 0 0 0 3px rgba(35, 125, 94, 0.22);
+  --shadow-focus: 0 0 0 3px rgba(47, 49, 216, 0.20);
 }
 
 html, body, #root { height: 100%; }
@@ -14,11 +14,11 @@ body {
   font-feature-settings: 'cv11', 'ss01';
 }
 
-/* Subtle warm scrollbars */
-* { scrollbar-width: thin; scrollbar-color: #d4cec3 transparent; }
+/* Subtle cool scrollbars */
+* { scrollbar-width: thin; scrollbar-color: #cbd3e1 transparent; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: #d4cec3; border-radius: 999px; }
-*::-webkit-scrollbar-thumb:hover { background: #a39c8f; }
+*::-webkit-scrollbar-thumb { background: #cbd3e1; border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: #98a2b8; }
 
 /* Visible keyboard focus everywhere, but not on mouse click */
 :focus-visible { outline: none; box-shadow: var(--shadow-focus); border-radius: 6px; }
@@ -35,13 +35,13 @@ body {
   .num { font-variant-numeric: tabular-nums; }
 
   /* ---------- Surfaces ---------- */
-  .card { @apply rounded-lg border border-ink-200 bg-white shadow-xs; }
+  .card { @apply rounded-xl border border-ink-200 bg-white shadow-xs; }
   .card-hover { @apply transition-[box-shadow,border-color,transform] duration-150 hover:border-ink-300 hover:shadow-md; }
-  .panel { @apply rounded-lg border border-ink-200 bg-ink-50/60; }
+  .panel { @apply rounded-xl border border-ink-200 bg-ink-50/60; }
 
   /* ---------- Buttons (one system) ---------- */
   .btn {
-    @apply inline-flex select-none items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors;
     @apply focus-visible:outline-none;
   }
   .btn:focus-visible { box-shadow: var(--shadow-focus); }
@@ -53,7 +53,7 @@ body {
 
   /* ---------- Inputs ---------- */
   .input {
-    @apply w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400;
+    @apply w-full rounded-lg border border-ink-300 bg-white px-3 py-2 text-sm text-ink-900 placeholder:text-ink-400;
     @apply transition-colors focus:border-brand-500 focus:outline-none;
   }
   .input:focus { box-shadow: var(--shadow-focus); }

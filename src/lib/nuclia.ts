@@ -482,7 +482,7 @@ export async function deleteResource(id: string): Promise<void> {
 export async function createLabelset(id: string, title: string, opts: { color?: string; multiple?: boolean } = {}): Promise<void> {
   await kb(`labelset/${id}`, {
     method: 'POST',
-    body: JSON.stringify({ title, color: opts.color || '#3366ff', multiple: opts.multiple ?? true, kind: ['RESOURCES'] }),
+    body: JSON.stringify({ title, color: opts.color || '#2F31D8', multiple: opts.multiple ?? true, kind: ['RESOURCES'] }),
   });
 }
 

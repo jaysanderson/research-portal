@@ -59,7 +59,7 @@ export default function TaxonomyPage() {
             return (
               <div key={id} className="card p-5">
                 <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full" style={{ background: ls.color || '#3366ff' }} />
+                  <span className="h-3 w-3 rounded-full" style={{ background: ls.color || '#2F31D8' }} />
                   <h3 className="font-semibold text-ink-900">{ls.title}</h3>
                   <span className="ml-auto text-xs text-ink-400">{sorted.length} {sorted.length === 1 ? 'value' : 'values'}</span>
                 </div>

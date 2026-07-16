@@ -27,8 +27,8 @@ export function stripBoilerplate(text?: string): string {
 // Deterministic gradient from a seed string — a pleasant placeholder/hero background
 // when a resource has no thumbnail. Shared by the Library cards and the Answer Journey.
 const GRADIENT_PALETTE: [string, string][] = [
-  ['#1A6A4F', '#237D5E'], ['#0e7490', '#06b6d4'], ['#8E5C14', '#C8861A'],
-  ['#7C5C8A', '#9b6fae'], ['#324160', '#5B7B8A'], ['#B5543F', '#cf6e57'],
+  ['#2F31D8', '#4E56F5'], ['#0EA5E9', '#06B6D4'], ['#6366F1', '#8B5CF6'],
+  ['#7C3AED', '#A855F7'], ['#171A54', '#2F31D8'], ['#EF6A4D', '#F0A81E'],
 ];
 export function gradientFor(seed: string): string {
   let h = 0;
