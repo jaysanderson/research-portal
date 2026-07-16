@@ -372,17 +372,15 @@ const norm5 = (n: unknown): number => {
 const maxOf = (a: unknown): number => (Array.isArray(a) ? a.reduce((m: number, x) => Math.max(m, norm5(typeof x === 'object' && x ? (x as any).score ?? x : x)), 0) : norm5(a));
 
 /** Evaluate a completed answer with REMi (relevance / context-relevance / groundedness).
- *  Routed to the NUA predict endpoint via /api/predict (keys stay server-side). */
+ *  The KB-scoped predict endpoint ({kb}/predict/remi) is the one the service account can
+ *  use — the public zone-root predict rejects service-account auth. Routed via /api/kb. */
 export async function scoreRemi(input: { question: string; answer: string; contexts: string[] }): Promise<RemiResult | null> {
   const contexts = input.contexts.filter(Boolean).slice(0, 20);
   if (!input.answer.trim() || !contexts.length) return null;
-  const res = await fetch('/api/predict/remi', {
+  const d = await kb<any>('predict/remi', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...kbHeaders() },
     body: JSON.stringify({ user_id: 'research-portal', question: input.question, answer: input.answer, contexts }),
   });
-  if (!res.ok) throw new Error(`remi -> ${res.status}`);
-  const d = await res.json();
   return {
     answerRelevance: norm5(d.answer_relevance?.score ?? d.answer_relevance),
     contextRelevance: maxOf(d.context_relevance),

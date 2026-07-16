@@ -186,7 +186,7 @@ async function ensureProbed() {
 ensureProbed().catch(() => {});
 
 const WRITE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
-const READ_POST_PATHS = [/^find$/, /^ask$/, /^search$/, /^catalog$/, /^suggest$/, /^feedback$/, /\/ask$/, /\/search$/];
+const READ_POST_PATHS = [/^find$/, /^ask$/, /^search$/, /^catalog$/, /^suggest$/, /^feedback$/, /^predict\//, /\/ask$/, /\/search$/];
 const pickKbKey = (method, subpath, kb) => {
   const isWrite = WRITE_METHODS.has(method) && !READ_POST_PATHS.some((re) => re.test(subpath));
   return isWrite ? kb.writerKey : kb.readerKey;
@@ -311,22 +311,6 @@ app.use('/api/agent', rawBody, async (req, res) => {
     await proxy(target, agent.apiKey, req, res);
   } catch (err) {
     if (!res.headersSent) res.status(502).json({ detail: 'Upstream agent request failed', error: String(err) });
-  }
-});
-
-// NUA predict proxy (REMi answer-quality scoring, etc.): the predict endpoints live at
-// the zone root ({.../api/v1}/predict/*), a sibling of /kb/<id> — derive it from kb.base.
-// Keys stay server-side; the client just POSTs {question, answer, contexts}.
-app.use('/api/predict', rawBody, async (req, res) => {
-  const kb = getKb(req);
-  if (kbError(res, kb)) return;
-  const predictBase = kb.base.replace(/\/kb\/[^/]+\/?$/, '');
-  const subpath = req.path.replace(/^\/+/, '');
-  const target = `${predictBase}/predict/${subpath}${req._parsedUrl?.search || ''}`;
-  try {
-    await proxy(target, kb.readerKey, req, res);
-  } catch (err) {
-    if (!res.headersSent) res.status(502).json({ detail: 'Predict request failed', error: String(err) });
   }
 });
 
