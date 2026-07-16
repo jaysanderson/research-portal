@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Share2, Loader2, X, Search as SearchIcon, GitFork } from 'lucide-react';
 import { fetchGraph, type GraphData, type GraphNode } from '../lib/graph';
@@ -57,9 +57,13 @@ function RelationsGraph({ kb, profile, GV, selected, setSelected }: {
   const [error, setError] = useState<string | null>(null);
 
   // Seed the explorer with the KB's subject/topic so it isn't blank on arrival.
+  // Re-seed if the profile revalidates (a stale cache can paint first) — but never
+  // clobber a query the user typed themselves.
+  const seededRef = useRef('');
   useEffect(() => {
     const seed = profile?.topics?.[0] || profile?.subject || '';
-    if (seed && !query) { setInput(seed); setQuery(seed); }
+    if (!seed) return;
+    if (!query || query === seededRef.current) { seededRef.current = seed; setInput(seed); setQuery(seed); }
   }, [profile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

@@ -205,7 +205,7 @@ export const RERANKER = { name: 'predict', window: 50 } as const;
 // prepends the resource title/summary, neighbouring_paragraphs adds surrounding text.
 // Directly fixes thin single-paragraph context (what ANSWER_SYSTEM_PROMPT was patching).
 export const RAG_STRATEGIES = [
-  { name: 'neighbouring_paragraphs', before: 2, after: 2 },
+  { name: 'neighbouring_paragraphs', before: 1, after: 1 },
   { name: 'hierarchy' },
 ] as const;
 
