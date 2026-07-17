@@ -99,6 +99,9 @@ body {
 .animate-rise { animation: journey-rise 0.5s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .animate-kenburns, .animate-rise { animation: none !important; } }
 
+/* matched-term highlight in search snippets */
+.prose-snippet mark, mark.rp-mark { background: #DDE1FF; color: #1E2080; border-radius: 3px; padding: 0 2px; font-weight: 600; }
+
 /* inline citation superscripts [n] */
 .rp-cite { @apply align-super text-[10px] font-bold leading-none; }
 .rp-cite a { @apply ml-0.5 inline-flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-brand-100 px-1 text-brand-700 no-underline hover:bg-brand-200; }

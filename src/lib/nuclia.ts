@@ -94,6 +94,8 @@ export interface FindResult {
   labels: string[];
   summary?: string;
   thumbnail?: string;
+  icon?: string;
+  created?: string;
 }
 
 export interface Citation { title: string; url?: string; resourceId?: string }
@@ -161,6 +163,37 @@ const FEATURES: Record<RetrievalMode, string[]> = {
   hybrid: ['keyword', 'semantic'],
 };
 
+// ---- Multi-model gateway: one Nuclia key → many LLMs (via generative_model on /ask) ----
+export interface GenModel { id: string; label: string; note: string }
+// Verified enabled on this account (others like Claude/Gemini return 403 until provisioned).
+export const GEN_MODELS: GenModel[] = [
+  { id: '', label: 'Default', note: 'Knowledge Box default' },
+  { id: 'chatgpt-azure-4o', label: 'GPT-4o', note: 'Balanced quality' },
+  { id: 'chatgpt-azure-4o-mini', label: 'GPT-4o mini', note: 'Fastest' },
+  { id: 'chatgpt-azure-o1', label: 'o1', note: 'Deep reasoning' },
+];
+let _model = (typeof localStorage !== 'undefined' && localStorage.getItem('rp_model')) || '';
+export function getModel(): string { return _model; }
+export function setModel(id: string) {
+  _model = id;
+  try { localStorage.setItem('rp_model', id); } catch { /* */ }
+  window.dispatchEvent(new Event('rp-model-change'));
+}
+export function modelLabel(id: string): string { return GEN_MODELS.find((m) => m.id === id)?.label || 'Default'; }
+
+export type MediaKind = 'video' | 'audio' | 'pdf' | 'image' | 'doc' | 'link' | 'text';
+/** Coarse media type from a Nuclia icon/mime — drives result/library badges & filters. */
+export function mediaKind(icon?: string): MediaKind {
+  const c = (icon || '').toLowerCase();
+  if (c.startsWith('video/')) return 'video';
+  if (c.startsWith('audio/')) return 'audio';
+  if (c === 'application/pdf') return 'pdf';
+  if (c.startsWith('image/')) return 'image';
+  if (c.includes('stf-link') || c.includes('html')) return 'link';
+  if (/word|officedocument|msword|ms-powerpoint|presentation|spreadsheet|excel/.test(c)) return 'doc';
+  return 'text';
+}
+
 export function vendorFilter(labelset: string, label: string) {
   return `/classification.labels/${labelset}/${label}`;
 }
@@ -209,7 +242,7 @@ export const RAG_STRATEGIES = [
   { name: 'hierarchy' },
 ] as const;
 
-export async function find(query: string, opts: { filters?: string[]; pageSize?: number; mode?: RetrievalMode } = {}): Promise<FindResult[]> {
+export async function find(query: string, opts: { filters?: string[]; pageSize?: number; page?: number; mode?: RetrievalMode; highlight?: boolean; filterExpression?: object; queryImage?: { b64encoded: string; content_type: string } } = {}): Promise<FindResult[]> {
   const body: any = {
     query,
     features: FEATURES[opts.mode || 'hybrid'],
@@ -218,6 +251,10 @@ export async function find(query: string, opts: { filters?: string[]; pageSize?:
     reranker: RERANKER,
   };
   if (opts.filters?.length) body.filters = opts.filters;
+  if (opts.filterExpression) body.filter_expression = opts.filterExpression;
+  if (opts.page) body.page_number = opts.page;
+  if (opts.highlight) body.highlight = true;
+  if (opts.queryImage) body.query_image = opts.queryImage;
   const data = await kb<any>('find', { method: 'POST', body: JSON.stringify(body) });
   const resObj = data.resources || {};
   const results: FindResult[] = Object.entries(resObj).map(([id, r]: [string, any]) => {
@@ -238,6 +275,8 @@ export async function find(query: string, opts: { filters?: string[]; pageSize?:
       labels: classificationsOf(r).map((c) => c.label),
       summary: r.summary,
       thumbnail: r.thumbnail,
+      icon: r.icon,
+      created: r.created,
     };
   });
   results.sort((a, b) => b.score - a.score);
@@ -273,6 +312,7 @@ export async function* ask(
     reranker: RERANKER,
     rag_strategies: RAG_STRATEGIES,
   };
+  if (_model) body.generative_model = _model;
   if (opts.filters?.length) body.filters = opts.filters;
   if (opts.context?.length) body.context = opts.context;
   if (opts.resourceId) body.resource_filters = [opts.resourceId];
@@ -329,6 +369,26 @@ export async function* ask(
     throw err;
    }
   }
+}
+
+// ---------------- Rephrase & summarize (ARAG /predict) ----------------
+
+/** Rewrite a query for better retrieval (also powers "did you mean"). */
+export async function rephrase(question: string, opts: { signal?: AbortSignal } = {}): Promise<string> {
+  const raw = await kb<any>('predict/rephrase', { method: 'POST', body: JSON.stringify({ question, user_id: 'research-portal' }), signal: opts.signal });
+  // The endpoint returns the rephrased string with a trailing status char.
+  const s = typeof raw === 'string' ? raw : String(raw?.rephrased ?? raw ?? '');
+  return s.replace(/\s*[0-9]$/, '').trim();
+}
+
+/** On-demand summary of arbitrary text via ARAG /predict/summarize. */
+export async function summarizeText(text: string, opts: { signal?: AbortSignal } = {}): Promise<string> {
+  const d = await kb<any>('predict/summarize', {
+    method: 'POST',
+    body: JSON.stringify({ resources: { a: { fields: { t: text.slice(0, 24000) } } } }),
+    signal: opts.signal,
+  });
+  return d?.resources?.a?.summary || d?.summary || '';
 }
 
 // ---------------- Suggest (typeahead) ----------------

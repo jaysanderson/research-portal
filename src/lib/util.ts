@@ -37,6 +37,13 @@ export function gradientFor(seed: string): string {
   return `linear-gradient(135deg, ${a}, ${b})`;
 }
 
+/** Escape HTML but keep Nuclia's <mark> highlight tags — for safe snippet rendering. */
+export function sanitizeHighlight(s: string): string {
+  return s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/&lt;mark&gt;/g, '<mark>').replace(/&lt;\/mark&gt;/g, '</mark>');
+}
+
 // Date helpers for "date added" display.
 export function formatDate(iso?: string): string {
   if (!iso) return '';

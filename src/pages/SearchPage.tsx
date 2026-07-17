@@ -1,16 +1,20 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, FileSearch, Tag } from 'lucide-react';
-import { find, suggest, type FindResult, type RetrievalMode, type Suggestion } from '../lib/nuclia';
+import { Search as SearchIcon, Loader2, FileSearch, Tag, Sparkles } from 'lucide-react';
+import { find, suggest, rephrase, type FindResult, type RetrievalMode, type Suggestion } from '../lib/nuclia';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { AnswerCard } from '../components/search/AnswerCard';
 import { ResultCard } from '../components/search/ResultCard';
+import { ModelPicker } from '../components/ModelPicker';
 import { EmptyState, ErrorState, SkeletonRows } from '../components/States';
 import { useKbProfile } from '../lib/hooks';
 
 const MODES: { id: RetrievalMode; label: string }[] = [
   { id: 'hybrid', label: 'Hybrid' }, { id: 'semantic', label: 'Semantic' }, { id: 'keyword', label: 'Keyword' },
 ];
+const SORTS = [{ id: 'relevance', label: 'Relevance' }, { id: 'date', label: 'Newest' }, { id: 'title', label: 'Title' }] as const;
+type SortId = typeof SORTS[number]['id'];
+const PAGE = 12;
 const FALLBACK_EXAMPLES = ['key findings', 'comparison', 'best practices', 'recent developments'];
 
 export default function SearchPage() {
@@ -18,10 +22,15 @@ export default function SearchPage() {
   const [input, setInput] = useState(params.get('q') || '');
   const [query, setQuery] = useState(params.get('q') || '');
   const [mode, setMode] = useState<RetrievalMode>('hybrid');
+  const [sort, setSort] = useState<SortId>('relevance');
   const [filters, setFilters] = useState<string[]>([]);
   const [results, setResults] = useState<FindResult[]>([]);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [didYouMean, setDidYouMean] = useState<string | null>(null);
   const { profile } = useKbProfile();
   const examples = profile?.topics?.length ? profile.topics : FALLBACK_EXAMPLES;
 
@@ -40,13 +49,35 @@ export default function SearchPage() {
   const pick = (text: string) => { setInput(text); setQuery(text); setParams({ q: text }); setShowSuggest(false); };
 
   const run = useCallback(async (q: string, f: string[], m: RetrievalMode) => {
-    if (!q.trim()) { setResults([]); return; }
-    setLoading(true); setError(null);
-    try { setResults(await find(q, { filters: f, mode: m, pageSize: 25 })); }
-    catch (e) { setError(String(e).slice(0, 160)); setResults([]); } finally { setLoading(false); }
+    if (!q.trim()) { setResults([]); setHasMore(false); setDidYouMean(null); return; }
+    setLoading(true); setError(null); setPage(0); setDidYouMean(null);
+    try {
+      const batch = await find(q, { filters: f, mode: m, pageSize: PAGE, page: 0, highlight: true });
+      setResults(batch); setHasMore(batch.length >= PAGE);
+      // Zero-result recovery: offer a model-rephrased query.
+      if (batch.length === 0) { rephrase(q).then((r) => { if (r && r.toLowerCase() !== q.toLowerCase()) setDidYouMean(r); }).catch(() => {}); }
+    } catch (e) { setError(String(e).slice(0, 160)); setResults([]); setHasMore(false); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { run(query, filters, mode); }, [query, filters, mode, run]);
+
+  const loadMore = async () => {
+    const next = page + 1;
+    setLoadingMore(true);
+    try {
+      const batch = await find(query, { filters, mode, pageSize: PAGE, page: next, highlight: true });
+      setResults((r) => [...r, ...batch.filter((b) => !r.some((x) => x.resourceId === b.resourceId))]);
+      setPage(next); setHasMore(batch.length >= PAGE);
+    } catch { setHasMore(false); } finally { setLoadingMore(false); }
+  };
+
+  const sorted = useMemo(() => {
+    const arr = [...results];
+    if (sort === 'date') arr.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
+    else if (sort === 'title') arr.sort((a, b) => a.title.localeCompare(b.title));
+    return arr; // 'relevance' keeps server order
+  }, [results, sort]);
 
   const submit = (e: React.FormEvent) => { e.preventDefault(); setShowSuggest(false); setQuery(input); setParams(input ? { q: input } : {}); };
   const toggle = (f: string) => setFilters((x) => x.includes(f) ? x.filter((y) => y !== f) : [...x, f]);
@@ -82,13 +113,22 @@ export default function SearchPage() {
         <button type="submit" className="btn-primary px-6">Search</button>
       </form>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="t-overline mr-1">Mode</span>
         <div className="inline-flex rounded-md border border-ink-200 bg-white p-0.5" role="group" aria-label="Retrieval mode">
           {MODES.map((m) => (
             <button key={m.id} onClick={() => setMode(m.id)} aria-pressed={mode === m.id}
               className={`rounded px-3 py-1 text-xs font-semibold transition-colors ${mode === m.id ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}>{m.label}</button>
           ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {results.length > 0 && (
+            <select value={sort} onChange={(e) => setSort(e.target.value as SortId)} aria-label="Sort results"
+              className="rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500">
+              {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          )}
+          <ModelPicker />
         </div>
       </div>
 
@@ -130,7 +170,7 @@ export default function SearchPage() {
               )}
 
               <div className="flex items-center justify-between">
-                <h2 className="t-h3">{loading ? 'Searching…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</h2>
+                <h2 className="t-h3">{loading ? 'Searching…' : `${results.length}${hasMore ? '+' : ''} result${results.length === 1 ? '' : 's'}`}</h2>
                 {loading && <Loader2 size={16} className="animate-spin text-brand-500" />}
               </div>
 
@@ -138,9 +178,23 @@ export default function SearchPage() {
                 : loading ? <SkeletonRows count={4} height="h-24" />
                 : results.length === 0 ? (
                   <EmptyState compact icon={<FileSearch size={22} strokeWidth={1.75} />} title="No results"
-                    description="Try a broader query, switch retrieval mode, or clear filters." />
+                    description="Try a broader query, switch retrieval mode, or clear filters."
+                    action={didYouMean ? (
+                      <button onClick={() => pick(didYouMean)} className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-700 hover:bg-brand-100">
+                        <Sparkles size={14} /> Did you mean “{didYouMean}”?
+                      </button>
+                    ) : undefined} />
                 ) : (
-                  <div className="space-y-3">{results.map((r) => <ResultCard key={r.resourceId} r={r} />)}</div>
+                  <>
+                    <div className="space-y-3">{sorted.map((r) => <ResultCard key={r.resourceId} r={r} />)}</div>
+                    {hasMore && (
+                      <div className="pt-1 text-center">
+                        <button onClick={loadMore} disabled={loadingMore} className="btn-outline">
+                          {loadingMore ? <Loader2 size={15} className="animate-spin" /> : null} Load more
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
             </>
           )}

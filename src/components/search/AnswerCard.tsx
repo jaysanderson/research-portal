@@ -4,6 +4,7 @@ import { ask, isRefusal, type Citation, type CitationMark } from '../../lib/nucl
 import { renderWithCitations } from '../../lib/markdown';
 import { Citations } from '../Citations';
 import { AnswerJourney } from '../journey/AnswerJourney';
+import { ReadAloud } from '../ReadAloud';
 import { friendlyError } from '../../lib/util';
 
 export function AnswerCard({ query, filters }: { query: string; filters: string[] }) {
@@ -63,11 +64,12 @@ export function AnswerCard({ query, filters }: { query: string; filters: string[
           )}
           <Citations citations={citations} />
           {clean && !streaming && (
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <button onClick={() => setJourney(true)}
                 className="group inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
                 <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
               </button>
+              <ReadAloud text={clean} />
             </div>
           )}
           <AnswerJourney open={journey} query={query} filters={filters}
