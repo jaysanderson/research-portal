@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Share2, Loader2, X, Search as SearchIcon, GitFork } from 'lucide-react';
 import { fetchGraph, type GraphData, type GraphNode } from '../lib/graph';
-import { listCatalog, getLabelsets, relationGraph, type ResourceCard } from '../lib/nuclia';
+import { listCatalog, getLabelsets, relationGraph, find, type ResourceCard, type FindResult } from '../lib/nuclia';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
 import { useCurrentKb, useKbProfile } from '../lib/hooks';
@@ -77,6 +77,15 @@ function RelationsGraph({ kb, profile, GV, selected, setSelected }: {
     return () => { active = false; ctrl.abort(); };
   }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Drill an entity → the documents that actually mention it (GraphRAG payoff).
+  const [docs, setDocs] = useState<FindResult[]>([]);
+  useEffect(() => {
+    if (!selected) { setDocs([]); return; }
+    let active = true;
+    find(selected.label, { pageSize: 5, mode: 'keyword' }).then((r) => { if (active) setDocs(r.slice(0, 5)); }).catch(() => {});
+    return () => { active = false; };
+  }, [selected]);
+
   const relationsOf = (label: string) =>
     (data?.edges || []).filter((e) => e.source === label || e.target === label)
       .map((e) => (e.source === label ? { dir: '→', other: e.target, label: e.label } : { dir: '←', other: e.source, label: e.label }));
@@ -129,6 +138,18 @@ function RelationsGraph({ kb, profile, GV, selected, setSelected }: {
                   ))}
                   {relationsOf(selected.label).length === 0 && <li className="px-2 text-xs text-ink-400">No direct relations in this view.</li>}
                 </ul>
+                {docs.length > 0 && (
+                  <div className="mt-4 border-t border-ink-100 pt-3">
+                    <div className="mb-1.5 t-overline">Mentioned in</div>
+                    <ul className="space-y-0.5">
+                      {docs.map((d) => (
+                        <li key={d.resourceId}>
+                          <Link to={`/knowledge/${d.resourceId}`} className="block truncate rounded-md px-2 py-1.5 text-sm text-ink-700 hover:bg-ink-100">{cleanTitle(d.title)}</Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </>
           ) : (
