@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Download } from 'lucide-react';
-import { getResource, resourceFileUrl, resourceFileBlobUrl } from '../lib/nuclia';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ExternalLink, Download, Sparkles, Loader2, Tags, FileText } from 'lucide-react';
+import { getResource, resourceFileUrl, resourceFileBlobUrl, summarizeText, find, type FindResult } from '../lib/nuclia';
 import { useChat } from '../lib/useChat';
 import { useCurrentKb, useKbImage } from '../lib/hooks';
 import { ChatThread } from '../components/chat/ChatThread';
@@ -11,6 +11,7 @@ import { ErrorState } from '../components/States';
 import { cleanTitle, stripBoilerplate, formatDate } from '../lib/util';
 import { renderMarkdown } from '../lib/markdown';
 
+interface Entity { text: string; type: string }
 interface FileField { fieldId: string; contentType: string; filename?: string }
 interface Detail {
   title: string;
@@ -21,7 +22,33 @@ interface Detail {
   thumbnail?: string;
   file?: FileField;
   labels: { labelset: string; label: string }[];
+  entities: Entity[];
+  language?: string;
   created?: string;
+}
+
+const ENTITY_SKIP = new Set(['DATE', 'TIME', 'CARDINAL', 'ORDINAL', 'PERCENT', 'QUANTITY', 'MONEY']);
+function extractEntities(r: any): Entity[] {
+  const merged: Record<string, string> = {};
+  for (const group of Object.values<any>(r?.data || {})) {
+    for (const field of Object.values<any>(group || {})) {
+      const ner = field?.extracted?.metadata?.metadata?.ner;
+      if (ner && typeof ner === 'object') for (const [t, ty] of Object.entries<any>(ner)) if (!merged[t]) merged[t] = ty;
+    }
+  }
+  return Object.entries(merged)
+    .filter(([t, ty]) => t.trim().length > 1 && !ENTITY_SKIP.has(ty))
+    .map(([text, type]) => ({ text, type }))
+    .sort((a, b) => a.text.localeCompare(b.text))
+    .slice(0, 18);
+}
+function firstLanguage(r: any): string | undefined {
+  for (const group of Object.values<any>(r?.data || {}))
+    for (const field of Object.values<any>(group || {})) {
+      const l = field?.extracted?.metadata?.metadata?.language;
+      if (l) return l;
+    }
+  return undefined;
 }
 
 function extractText(r: any): string {
@@ -50,14 +77,18 @@ function pickFile(r: any): FileField | undefined {
 export default function KnowledgeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const kb = useCurrentKb();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [related, setRelated] = useState<FindResult[]>([]);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
   const chat = useChat({ resourceId: id });
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true); setError(null); setDetail(null);
+    setLoading(true); setError(null); setDetail(null); setRelated([]); setAiSummary(null);
     getResource(id).then((r) => {
       setDetail({
         title: r.title || '(untitled)',
@@ -68,10 +99,40 @@ export default function KnowledgeDetailPage() {
         thumbnail: r.thumbnail,
         file: pickFile(r),
         labels: r?.usermetadata?.classifications || [],
+        entities: extractEntities(r),
+        language: firstLanguage(r),
         created: r.created,
       });
     }).catch((e) => setError(String(e))).finally(() => setLoading(false));
   }, [id]);
+
+  // "More like this" — semantic neighbours seeded from the title (excluding self).
+  useEffect(() => {
+    if (!detail?.title || !id) return;
+    let active = true;
+    find(cleanTitle(detail.title), { pageSize: 7, mode: 'semantic' })
+      .then((r) => { if (active) setRelated(r.filter((x) => x.resourceId !== id).slice(0, 5)); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [detail?.title, id]);
+
+  const summarize = async () => {
+    if (!detail?.text) return;
+    setSummarizing(true);
+    try { setAiSummary(await summarizeText(detail.text)); }
+    catch { setAiSummary('Could not generate a summary right now.'); }
+    finally { setSummarizing(false); }
+  };
+
+  const suggestedQuestions = useMemo(() => {
+    if (!detail) return [] as string[];
+    const topic = detail.labels[0]?.label || detail.entities[0]?.text;
+    return [
+      'Summarize the key points',
+      topic ? `What does this say about ${topic}?` : 'What are the main takeaways?',
+      'What questions does this leave open?',
+    ];
+  }, [detail]);
 
   const directUrl = detail?.file && id && kb?.id ? resourceFileUrl(id, detail.file.fieldId, kb.id) : null;
   const isLocal = !!kb?.id?.startsWith('local-');
@@ -155,12 +216,28 @@ export default function KnowledgeDetailPage() {
               <p className="mt-5 text-sm text-ink-500">This file type can’t be previewed inline. {detail.url && <a className="text-brand-700 underline" href={detail.url} target="_blank" rel="noreferrer">Open source</a>}</p>
             )}
 
-            {detail.summary && (
-              <div className="card mt-5 p-4">
-                <div className="mb-1 t-overline">Summary</div>
-                <p className="text-sm text-ink-700">{detail.summary}</p>
+            {detail.entities.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-1.5 flex items-center gap-1.5 t-overline"><Tags size={12} /> Entities in this resource</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {detail.entities.map((e) => (
+                    <button key={e.text} onClick={() => navigate(`/search?q=${encodeURIComponent(e.text)}`)} className="chip-link" title={`${e.type} — search for this entity`}>{e.text}</button>
+                  ))}
+                </div>
               </div>
             )}
+
+            <div className="card mt-4 p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="t-overline">Summary</span>
+                <button onClick={summarize} disabled={summarizing || !detail.text} className="btn-ghost btn-sm">
+                  {summarizing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />} {aiSummary ? 'Regenerate' : 'Summarize with AI'}
+                </button>
+              </div>
+              {aiSummary ? <p className="text-sm text-ink-700">{aiSummary}</p>
+                : detail.summary ? <p className="text-sm text-ink-700">{detail.summary}</p>
+                : <p className="text-sm text-ink-400">No summary yet — generate a fresh one from the extracted text.</p>}
+            </div>
 
             <details className="card mt-4 p-5" open={!detail.file}>
               <summary className="t-overline cursor-pointer select-none">{detail.file || detail.url ? 'Extracted text' : 'Content'}</summary>
@@ -171,6 +248,21 @@ export default function KnowledgeDetailPage() {
                 <p className="mt-3 text-sm text-ink-400">No extracted text{detail.status === 'PENDING' ? ' yet — still processing.' : '.'}</p>
               )}
             </details>
+
+            {related.length > 0 && (
+              <div className="card mt-4 p-4">
+                <div className="mb-2 t-overline">Related resources</div>
+                <ul className="space-y-0.5">
+                  {related.map((r) => (
+                    <li key={r.resourceId}>
+                      <Link to={`/knowledge/${r.resourceId}`} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-ink-700 hover:bg-ink-100">
+                        <FileText size={13} className="shrink-0 text-ink-400" /><span className="truncate">{cleanTitle(r.title)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </article>
 
           <aside className="lg:sticky lg:top-20 lg:h-[calc(100vh-7rem)]">
@@ -181,6 +273,7 @@ export default function KnowledgeDetailPage() {
               </div>
               <div className="flex-1 overflow-hidden">
                 <ChatThread messages={chat.messages} busy={chat.busy} onSend={chat.send} onStop={chat.stop} compact
+                  examples={chat.messages.length === 0 ? suggestedQuestions : undefined}
                   placeholder="Ask about this resource…" />
               </div>
             </div>
