@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FileText, Layers, Hash, Database, MessageSquare, Coins, Clock, Tags, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { getCounters, getFacets, getSourceHealth, getLabelsets, type Counters, type SourceHealth } from '../lib/nuclia';
 import { loadTraces } from '../lib/agentic';
+import { loadQueries, topQueries } from '../lib/querylog';
 import { BarList } from '../components/BarList';
 import { PageHeader } from '../components/PageHeader';
 import { EmptyState } from '../components/States';
@@ -39,6 +40,14 @@ export default function AnalyticsPage() {
   const processed = counts['PROCESSED'] || 0;
   const pct = total ? Math.round((processed / total) * 100) : 0;
   const problems = health?.problems || [];
+
+  const topQ = topQueries(loadQueries()).slice(0, 8);
+  const zeroQ = topQ.filter((q) => q.results === 0);
+  const remiTraces = traces.filter((t) => t.remi && (t.remi.relevance != null || t.remi.groundedness != null));
+  const remiAvg = (sel: (r: NonNullable<typeof traces[number]['remi']>) => number | undefined) =>
+    remiTraces.length ? Math.round((remiTraces.reduce((s, t) => s + (sel(t.remi!) ?? 0), 0) / remiTraces.length) * 100) : null;
+  const avgRel = remiAvg((r) => r.relevance);
+  const avgGnd = remiAvg((r) => r.groundedness);
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
@@ -77,6 +86,51 @@ export default function AnalyticsPage() {
             <Mini icon={<Clock size={16} />} label="Avg s" value={avgDur ? avgDur.toFixed(1) : '—'} />
           </div>
           <div className="mt-3 text-xs text-ink-400">Local to this browser. Production aggregates server-side across users.</div>
+        </Card>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <Card title="Search insights (this device)">
+          {topQ.length === 0 ? (
+            <p className="text-sm text-ink-400">Run a few searches to see your top queries and content gaps here.</p>
+          ) : (
+            <>
+              <ul className="space-y-1">
+                {topQ.map((q) => (
+                  <li key={q.q} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="truncate text-ink-700">{q.q}</span>
+                    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${q.results === 0 ? 'bg-accent-50 text-accent-700' : 'bg-ink-100 text-ink-500'}`}>
+                      {q.results === 0 ? 'no results' : `${q.results} hits`} · ×{q.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {zeroQ.length > 0 && (
+                <div className="mt-3 flex items-center gap-1.5 border-t border-ink-100 pt-3 text-xs text-accent-700">
+                  <AlertTriangle size={13} /> {zeroQ.length} query{zeroQ.length === 1 ? '' : 's'} returned nothing — content gaps to fill.
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+        <Card title="Answer quality trend (REMi)">
+          {remiTraces.length === 0 ? (
+            <p className="text-sm text-ink-400">Run an Agentic query to capture REMi relevance & groundedness scores.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Mini icon={<CheckCircle2 size={16} />} label="Avg relevance" value={avgRel == null ? '—' : `${avgRel}%`} />
+                <Mini icon={<CheckCircle2 size={16} />} label="Avg groundedness" value={avgGnd == null ? '—' : `${avgGnd}%`} />
+              </div>
+              <div className="mt-3 flex items-end gap-1" aria-hidden>
+                {remiTraces.slice(0, 24).reverse().map((t, i) => {
+                  const v = Math.round(((t.remi!.groundedness ?? t.remi!.relevance ?? 0)) * 100);
+                  return <span key={i} title={`${v}%`} className="flex-1 rounded-sm bg-brand-400" style={{ height: `${Math.max(4, v * 0.42)}px` }} />;
+                })}
+              </div>
+              <div className="mt-1 text-[10px] uppercase text-ink-400">Groundedness · last {Math.min(remiTraces.length, 24)} answers</div>
+            </>
+          )}
         </Card>
       </div>
 

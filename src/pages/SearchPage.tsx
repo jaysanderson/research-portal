@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, FileSearch, Tag, Sparkles } from 'lucide-react';
+import { Search as SearchIcon, Loader2, FileSearch, Tag, Sparkles, ImagePlus, X } from 'lucide-react';
 import { find, suggest, rephrase, type FindResult, type RetrievalMode, type Suggestion } from '../lib/nuclia';
+import { logQuery } from '../lib/querylog';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { AnswerCard } from '../components/search/AnswerCard';
 import { ResultCard } from '../components/search/ResultCard';
@@ -31,6 +32,8 @@ export default function SearchPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [didYouMean, setDidYouMean] = useState<string | null>(null);
+  const [imageName, setImageName] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const { profile } = useKbProfile();
   const examples = profile?.topics?.length ? profile.topics : FALLBACK_EXAMPLES;
 
@@ -54,6 +57,7 @@ export default function SearchPage() {
     try {
       const batch = await find(q, { filters: f, mode: m, pageSize: PAGE, page: 0, highlight: true });
       setResults(batch); setHasMore(batch.length >= PAGE);
+      logQuery(q, batch.length);
       // Zero-result recovery: offer a model-rephrased query.
       if (batch.length === 0) { rephrase(q).then((r) => { if (r && r.toLowerCase() !== q.toLowerCase()) setDidYouMean(r); }).catch(() => {}); }
     } catch (e) { setError(String(e).slice(0, 160)); setResults([]); setHasMore(false); }
@@ -79,7 +83,21 @@ export default function SearchPage() {
     return arr; // 'relevance' keeps server order
   }, [results, sort]);
 
-  const submit = (e: React.FormEvent) => { e.preventDefault(); setShowSuggest(false); setQuery(input); setParams(input ? { q: input } : {}); };
+  // Multimodal: search the KB by an uploaded image (ARAG query_image).
+  const onImage = (file: File | undefined) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = String(reader.result).split(',')[1];
+      if (!b64) return;
+      setLoading(true); setError(null); setImageName(file.name); setQuery(''); setResults([]); setHasMore(false);
+      try { setResults(await find('', { queryImage: { b64encoded: b64, content_type: file.type || 'image/png' }, pageSize: PAGE, mode: 'semantic' })); }
+      catch (e) { setError(String(e).slice(0, 160)); } finally { setLoading(false); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const submit = (e: React.FormEvent) => { e.preventDefault(); setShowSuggest(false); setImageName(null); setQuery(input); setParams(input ? { q: input } : {}); };
   const toggle = (f: string) => setFilters((x) => x.includes(f) ? x.filter((y) => y !== f) : [...x, f]);
   const related = Array.from(new Set(results.flatMap((r) => r.labels))).slice(0, 8);
 
@@ -122,12 +140,15 @@ export default function SearchPage() {
           ))}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {results.length > 0 && (
+          {results.length > 0 && !imageName && (
             <select value={sort} onChange={(e) => setSort(e.target.value as SortId)} aria-label="Sort results"
               className="rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500">
               {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           )}
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onImage(e.target.files?.[0]); e.target.value = ''; }} />
+          <button type="button" onClick={() => fileRef.current?.click()} title="Search the Knowledge Box by image"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 transition-colors hover:border-ink-300"><ImagePlus size={14} className="text-brand-600" /> Image</button>
           <ModelPicker />
         </div>
       </div>
@@ -135,7 +156,7 @@ export default function SearchPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[220px_1fr]">
         <aside className="hidden lg:block"><FacetFilters selected={filters} onToggle={toggle} onClear={() => setFilters([])} /></aside>
         <div className="min-w-0 space-y-4">
-          {!query ? (
+          {!query && !imageName ? (
             <div className="card">
               <EmptyState icon={<FileSearch size={24} strokeWidth={1.75} />} title="Search your knowledge base"
                 description="Get cited AI answers alongside ranked results. Try one of these:"
@@ -158,9 +179,16 @@ export default function SearchPage() {
                   <button onClick={() => setFilters([])} className="text-xs font-medium text-brand-700 hover:underline">Clear all</button>
                 </div>
               )}
-              <AnswerCard query={query} filters={filters} />
+              {imageName ? (
+                <div className="card flex items-center justify-between gap-2 border-brand-100 bg-brand-50/40 p-3">
+                  <span className="flex items-center gap-2 text-sm text-ink-700"><ImagePlus size={15} className="text-brand-600" /> Results visually similar to <b className="font-semibold">{imageName}</b></span>
+                  <button onClick={() => { setImageName(null); setResults([]); }} aria-label="Clear image search" className="text-ink-400 hover:text-ink-700"><X size={15} /></button>
+                </div>
+              ) : (
+                <AnswerCard query={query} filters={filters} />
+              )}
 
-              {related.length > 0 && (
+              {!imageName && related.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="t-overline mr-1">Refine</span>
                   {related.map((l) => (
