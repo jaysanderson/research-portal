@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Send, Square, Sparkles, User, Compass } from 'lucide-react';
+import { Send, Square, Sparkles, User, Compass, Copy, Check } from 'lucide-react';
 import { renderMarkdown, renderWithCitations } from '../../lib/markdown';
 import { isRefusal } from '../../lib/nuclia';
 import { Citations } from '../Citations';
 import { AnswerJourney } from '../journey/AnswerJourney';
+import { ReadAloud } from '../ReadAloud';
 import type { ChatMessage } from '../../lib/useChat';
 
 export function ChatThread({ messages, busy, onSend, onStop, placeholder, compact, examples }: {
@@ -86,16 +87,32 @@ function Bubble({ m, compact, question, onJourney }: { m: ChatMessage; compact?:
               </div>
             )}
             {m.citations && <Citations citations={m.citations} />}
-            {canJourney && (
-              <button onClick={() => onJourney!({ query: question!, citedIds: (m.citations || []).map((c) => c.resourceId || '').filter(Boolean) })}
-                className="group mt-3 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
-                <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
-              </button>
+            {!isUser && !m.streaming && !!m.content && !isRefusal(m.content) && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <CopyBtn text={m.content} />
+                <ReadAloud text={m.content} />
+                {canJourney && (
+                  <button onClick={() => onJourney!({ query: question!, citedIds: (m.citations || []).map((c) => c.resourceId || '').filter(Boolean) })}
+                    className="group inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
+                    <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
+                  </button>
+                )}
+              </div>
             )}
           </>
         )}
       </div>
     </div>
+  );
+}
+
+function CopyBtn({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button onClick={() => { navigator.clipboard?.writeText(text.replace(/\[\d+\]/g, '')).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }).catch(() => {}); }}
+      className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:border-ink-300 hover:text-ink-800">
+      {done ? <Check size={13} className="text-brand-600" /> : <Copy size={13} />} {done ? 'Copied' : 'Copy'}
+    </button>
   );
 }
 

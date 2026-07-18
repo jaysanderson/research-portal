@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useChat } from '../lib/useChat';
 import { ChatThread } from '../components/chat/ChatThread';
 import { useKbProfile } from '../lib/hooks';
+import { ModelPicker } from '../components/ModelPicker';
 import { RotateCcw } from 'lucide-react';
 
 const FALLBACK_EXAMPLES = [
@@ -27,7 +28,10 @@ export default function AssistantPage() {
           <h1 className="t-display">Assistant</h1>
           <p className="mt-1 t-muted">Streaming, cited answers grounded in your Knowledge Box.</p>
         </div>
-        {messages.length > 0 && <button onClick={reset} className="btn-outline btn-sm"><RotateCcw size={14} /> New chat</button>}
+        <div className="flex items-center gap-2">
+          <ModelPicker />
+          {messages.length > 0 && <button onClick={reset} className="btn-outline btn-sm"><RotateCcw size={14} /> New chat</button>}
+        </div>
       </div>
       <div className="card flex-1 overflow-hidden">
         <ChatThread messages={messages} busy={busy} onSend={send} onStop={stop} examples={examples}

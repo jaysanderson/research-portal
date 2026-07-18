@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Table2, FileText, GraduationCap, Loader2, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
+import { Table2, FileText, GraduationCap, Loader2, Sparkles, CheckCircle2, XCircle, Copy, Check, Download, Printer } from 'lucide-react';
 import { askStructured, type Citation } from '../lib/nuclia';
 import { comparisonSchema, briefingSchema, quizSchema, type ComparisonOut, type BriefingOut, type QuizOut } from '../lib/schemas';
+import { copyText, matrixToCsv, matrixToMarkdown, briefingToMarkdown, downloadCsv, printDocument } from '../lib/exports';
 import { SaveButton } from '../components/SaveButton';
 import { PageHeader } from '../components/PageHeader';
 import { useKbProfile } from '../lib/hooks';
@@ -45,6 +46,14 @@ export default function GeneratePage() {
         {tab === 'quiz' && <QuizTool />}
       </div>
     </div>
+  );
+}
+
+function ExportBtn({ onClick, icon, label, done }: { onClick: () => void; icon: React.ReactNode; label: string; done?: boolean }) {
+  return (
+    <button onClick={onClick} className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition-colors hover:border-ink-300 hover:text-ink-800">
+      {done ? <Check size={13} className="text-brand-600" /> : icon} {done ? 'Copied' : label}
+    </button>
   );
 }
 
@@ -115,6 +124,9 @@ function useGenerator<T>(schema: any) {
 function MatrixTool() {
   const { q, setQ } = useSeededQuery('matrix');
   const { busy, out, cites, err, run } = useGenerator<ComparisonOut>(comparisonSchema);
+  const [copied, setCopied] = useState(false);
+  const copyMd = () => copyText(matrixToMarkdown(out!)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+  const matrixHtml = () => `<h1>Comparison — ${q}</h1><table><thead><tr><th>Option</th>${out!.dimensions.map((d) => `<th>${d}</th>`).join('')}</tr></thead><tbody>${out!.vendors.map((v) => `<tr><td><b>${v.name}</b></td>${out!.dimensions.map((d) => `<td>${v.ratings.find((r) => r.dimension.toLowerCase() === d.toLowerCase())?.assessment || '—'}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   return (
     <div className="card p-5">
       <Composer value={q} onChange={setQ} onRun={(v) => run(v)} busy={busy} placeholder="Which vendors and dimensions to compare…" />
@@ -137,6 +149,12 @@ function MatrixTool() {
               ))}
             </tbody>
           </table>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <ExportBtn onClick={copyMd} icon={<Copy size={13} />} label="Copy" done={copied} />
+            <ExportBtn onClick={() => downloadCsv('comparison.csv', matrixToCsv(out))} icon={<Download size={13} />} label="CSV" />
+            <ExportBtn onClick={() => printDocument('Comparison', matrixHtml())} icon={<Printer size={13} />} label="Print / PDF" />
+            <SaveButton item={() => ({ type: 'artifact', title: `Comparison: ${q.slice(0, 60)}`, content: matrixToMarkdown(out), citations: cites })} />
+          </div>
           <Citations items={cites} />
         </div>
       )}
@@ -147,6 +165,9 @@ function MatrixTool() {
 function BriefingTool() {
   const { q, setQ } = useSeededQuery('briefing');
   const { busy, out, cites, err, run } = useGenerator<BriefingOut>(briefingSchema);
+  const [copied, setCopied] = useState(false);
+  const copyMd = () => copyText(briefingToMarkdown(out!, cites)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => {});
+  const briefingHtml = () => `<h1>${out!.title}</h1><blockquote>${out!.executive_summary}</blockquote>${out!.sections.map((s) => `<h2>${s.heading}</h2><p>${s.content}</p>`).join('')}${out!.key_takeaways?.length ? `<h2>Key takeaways</h2><ul>${out!.key_takeaways.map((k) => `<li>${k}</li>`).join('')}</ul>` : ''}${cites.length ? `<h2>Sources</h2><ol class="src">${cites.map((c) => `<li>${c.title}</li>`).join('')}</ol>` : ''}`;
   return (
     <div className="card p-5">
       <Composer value={q} onChange={setQ} onRun={(v) => run(v)} busy={busy} placeholder="Briefing topic…" />
@@ -158,7 +179,11 @@ function BriefingTool() {
             <h2 className="text-xl font-bold text-ink-900">{out.title}</h2>
             <SaveButton item={() => ({ type: 'artifact', title: out.title, content: `${out.executive_summary}\n\n${out.sections.map((s) => `### ${s.heading}\n${s.content}`).join('\n\n')}\n\n**Key takeaways**\n${out.key_takeaways.map((k) => `- ${k}`).join('\n')}`, citations: cites })} />
           </div>
-          <p className="mt-2 rounded-lg bg-brand-50/60 p-3 text-sm text-ink-700">{out.executive_summary}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <ExportBtn onClick={copyMd} icon={<Copy size={13} />} label="Copy" done={copied} />
+            <ExportBtn onClick={() => printDocument(out.title, briefingHtml())} icon={<Printer size={13} />} label="Print / PDF" />
+          </div>
+          <p className="mt-3 rounded-lg bg-brand-50/60 p-3 text-sm text-ink-700">{out.executive_summary}</p>
           {out.sections.map((s, i) => (
             <div key={i} className="mt-4"><h3 className="font-semibold text-ink-900">{s.heading}</h3><p className="mt-1 text-sm text-ink-600">{s.content}</p></div>
           ))}

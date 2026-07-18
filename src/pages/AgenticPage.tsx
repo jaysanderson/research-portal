@@ -19,6 +19,8 @@ import { fromChunks } from '../lib/journey';
 import { PageHeader } from '../components/PageHeader';
 import { Citations } from '../components/Citations';
 import { SaveButton } from '../components/SaveButton';
+import { ModelPicker } from '../components/ModelPicker';
+import { ReadAloud } from '../components/ReadAloud';
 import { RemiGauge } from '../components/agentic/RemiGauge';
 import { DriverPanel } from '../components/agentic/DriverPanel';
 
@@ -122,7 +124,7 @@ export default function AgenticPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
-      <PageHeader title="Agentic retrieval"
+      <PageHeader title="Agentic retrieval" actions={<ModelPicker />}
         description={`Ask a complex question and get a grounded, cited answer. Open “Show reasoning” to inspect the full pipeline.${aragOn ? ' Multi-driver agent active.' : ' KB-pipeline mode with live REMi scoring — connect an ARAG agent to add multi-driver fan-out (web, SQL, graph, MCP).'}`} />
 
       <form onSubmit={(e) => { e.preventDefault(); run((inputRef.current?.value ?? input).trim()); }} className="flex gap-2">
@@ -157,12 +159,15 @@ export default function AgenticPage() {
               <p className="text-sm text-ink-500">No grounded answer — try rephrasing the question.</p>
             )}
             <Citations citations={citations} />
-            {clean && !running && chunks.length > 0 && (
-              <div className="mt-3">
-                <button onClick={() => setJourney(true)}
-                  className="group inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
-                  <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
-                </button>
+            {clean && !running && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {chunks.length > 0 && (
+                  <button onClick={() => setJourney(true)}
+                    className="group inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-50">
+                    <Compass size={14} className="transition-transform group-hover:rotate-12" /> Journey through the context
+                  </button>
+                )}
+                <ReadAloud text={clean} />
               </div>
             )}
           </div>

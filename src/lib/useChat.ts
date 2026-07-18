@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ask, isRefusal, type Citation, type CitationMark } from './nuclia';
+import { getSelectedKbId } from './api';
 
 const NO_ANSWER = 'I couldn’t find a grounded answer to that in this Knowledge Box. Try rephrasing, or use **Search** to browse related results.';
 
@@ -13,9 +14,17 @@ export interface ChatMessage {
 }
 
 export function useChat(opts: { filters?: string[]; resourceId?: string } = {}) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // Persist the main assistant thread per Knowledge Box (not resource-scoped chats).
+  const persist = !opts.resourceId;
+  const chatKey = () => `rp_chat_${getSelectedKbId() || 'default'}`;
+  const loadSaved = (): ChatMessage[] => { if (!persist) return []; try { return JSON.parse(localStorage.getItem(chatKey()) || '[]'); } catch { return []; } };
+  const [messages, setMessages] = useState<ChatMessage[]>(loadSaved);
   const [busy, setBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Save when idle; reload when the KB changes.
+  useEffect(() => { if (persist && !busy) { try { localStorage.setItem(chatKey(), JSON.stringify(messages.filter((m) => !m.streaming))); } catch { /* */ } } }, [messages, busy, persist]);
+  useEffect(() => { if (!persist) return; const h = () => setMessages(loadSaved()); window.addEventListener('rp-kb-change', h); return () => window.removeEventListener('rp-kb-change', h); }, [persist]);
 
   const send = useCallback(async (text: string) => {
     const q = text.trim();
@@ -54,7 +63,7 @@ export function useChat(opts: { filters?: string[]; resourceId?: string } = {}) 
   }, [messages, busy, opts.filters, opts.resourceId]);
 
   const stop = useCallback(() => { abortRef.current?.abort(); setBusy(false); }, []);
-  const reset = useCallback(() => { abortRef.current?.abort(); setMessages([]); setBusy(false); }, []);
+  const reset = useCallback(() => { abortRef.current?.abort(); setMessages([]); setBusy(false); if (persist) try { localStorage.removeItem(chatKey()); } catch { /* */ } }, [persist]);
 
   return { messages, busy, send, stop, reset };
 }
