@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Layers, Hash, Database, MessageSquare, Coins, Clock, Tags, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { getCounters, getFacets, getSourceHealth, getLabelsets, type Counters, type SourceHealth } from '../lib/nuclia';
+import { getCounters, getFacets, getSourceHealth, getLabelsets, reprocessResource, type Counters, type SourceHealth } from '../lib/nuclia';
+import { toast } from '../lib/toast';
 import { loadTraces } from '../lib/agentic';
 import { loadQueries, topQueries } from '../lib/querylog';
 import { BarList } from '../components/BarList';
@@ -69,11 +70,25 @@ export default function AnalyticsPage() {
               <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700"><AlertTriangle size={13} /> {problems.length} need attention</div>
               <ul className="max-h-44 space-y-1 overflow-y-auto">
                 {problems.slice(0, 25).map((p) => (
-                  <li key={p.id}><Link to={`/knowledge/${p.id}`} className="flex items-center gap-2 text-xs text-ink-600 hover:text-brand-700">
-                    <span className="chip shrink-0 bg-accent-50 text-accent-700">{p.status}</span><span className="truncate">{p.title}</span>
-                  </Link></li>
+                  <li key={p.id} className="flex items-center gap-2">
+                    <Link to={`/knowledge/${p.id}`} className="flex min-w-0 flex-1 items-center gap-2 text-xs text-ink-600 hover:text-brand-700">
+                      <span className="chip shrink-0 bg-accent-50 text-accent-700">{p.status}</span><span className="truncate">{p.title}</span>
+                    </Link>
+                    <ReprocessBtn id={p.id} />
+                  </li>
                 ))}
               </ul>
+              {problems.length > 1 && (
+                <button
+                  onClick={async () => {
+                    const ids = problems.slice(0, 25).map((p) => p.id);
+                    toast(`Re-processing ${ids.length} resources…`, 'info');
+                    const res = await Promise.allSettled(ids.map((id) => reprocessResource(id)));
+                    const ok = res.filter((r) => r.status === 'fulfilled').length;
+                    toast(`Re-queued ${ok}/${ids.length} for processing.`, ok ? 'success' : 'error');
+                  }}
+                  className="btn-outline btn-sm mt-2">Retry all shown</button>
+              )}
             </div>
           ) : total > 0 && (
             <div className="mt-3 flex items-center gap-1.5 border-t border-ink-100 pt-3 text-xs text-brand-700"><CheckCircle2 size={13} /> All resources processed cleanly.</div>
@@ -150,6 +165,24 @@ export default function AnalyticsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function ReprocessBtn({ id }: { id: string }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
+  return (
+    <button
+      onClick={async (e) => {
+        e.preventDefault();
+        setState('busy');
+        try { await reprocessResource(id); setState('done'); toast('Re-queued for processing.', 'success'); }
+        catch { setState('idle'); toast('Could not re-process that resource.', 'error'); }
+      }}
+      disabled={state !== 'idle'}
+      className="shrink-0 rounded-md border border-ink-200 px-1.5 py-0.5 text-[10px] font-semibold text-ink-500 hover:border-brand-300 hover:text-brand-700 disabled:opacity-60"
+      title="Re-run extraction for this resource">
+      {state === 'busy' ? '…' : state === 'done' ? 'queued' : 'retry'}
+    </button>
   );
 }
 

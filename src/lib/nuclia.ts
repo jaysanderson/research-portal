@@ -371,6 +371,23 @@ export async function* ask(
   }
 }
 
+// ---------------- Maintenance & tuning ----------------
+
+/** Re-run ingestion/extraction for a resource (retry an ERROR/stuck resource). */
+export async function reprocessResource(id: string): Promise<void> {
+  await kb(`resource/${id}/reprocess`, { method: 'POST' });
+}
+
+/** Custom synonyms: map a term to equivalents so keyword retrieval catches variants. */
+export type SynonymMap = Record<string, string[]>;
+export async function getSynonyms(): Promise<SynonymMap> {
+  const d = await kb<any>('custom-synonyms');
+  return (d?.synonyms || {}) as SynonymMap;
+}
+export async function putSynonyms(synonyms: SynonymMap): Promise<void> {
+  await kb('custom-synonyms', { method: 'PUT', body: JSON.stringify({ synonyms }) });
+}
+
 // ---------------- Rephrase & summarize (ARAG /predict) ----------------
 
 /** Rewrite a query for better retrieval (also powers "did you mean"). */

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Database, KeyRound, Users, Code2, Copy, Check, Plus, Trash2, Globe } from 'lucide-react';
+import { Database, KeyRound, Users, Code2, Copy, Check, Plus, Trash2, Globe, Shuffle } from 'lucide-react';
+import { SynonymsPanel } from '../components/SynonymsPanel';
 import { useConfig } from '../lib/hooks';
 import { mergedKbs, removeLocalKb } from '../lib/api';
 import { PageHeader } from '../components/PageHeader';
@@ -56,6 +57,10 @@ export default function SettingsPage() {
 
       <Panel icon={<Globe size={16} />} title="Integrations — Perplexity (live web search)" className="mt-4">
         <PerplexityPanel />
+      </Panel>
+
+      <Panel icon={<Shuffle size={16} />} title="Search tuning — synonyms" className="mt-4">
+        <SynonymsPanel />
       </Panel>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">

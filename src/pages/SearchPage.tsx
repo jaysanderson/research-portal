@@ -15,6 +15,14 @@ const MODES: { id: RetrievalMode; label: string }[] = [
 ];
 const SORTS = [{ id: 'relevance', label: 'Relevance' }, { id: 'date', label: 'Newest' }, { id: 'title', label: 'Title' }] as const;
 type SortId = typeof SORTS[number]['id'];
+// Paragraph-kind filters (ARAG filter_expression) — surfaces content the platform
+// extracted from scans, tables and media that plain text search hides.
+const KINDS = [
+  { id: 'OCR', label: 'Scanned (OCR)' },
+  { id: 'TABLE', label: 'Tables' },
+  { id: 'TRANSCRIPT', label: 'Transcripts' },
+] as const;
+type KindId = typeof KINDS[number]['id'];
 const PAGE = 12;
 const FALLBACK_EXAMPLES = ['key findings', 'comparison', 'best practices', 'recent developments'];
 
@@ -33,7 +41,9 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [didYouMean, setDidYouMean] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string | null>(null);
+  const [kind, setKind] = useState<KindId | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const kindExpr = (k: KindId | null) => (k ? { paragraph: { prop: 'kind', kind: k } } : undefined);
   const { profile } = useKbProfile();
   const examples = profile?.topics?.length ? profile.topics : FALLBACK_EXAMPLES;
 
@@ -51,11 +61,11 @@ export default function SearchPage() {
   }, [input, query]);
   const pick = (text: string) => { setInput(text); setQuery(text); setParams({ q: text }); setShowSuggest(false); };
 
-  const run = useCallback(async (q: string, f: string[], m: RetrievalMode) => {
+  const run = useCallback(async (q: string, f: string[], m: RetrievalMode, k: KindId | null = null) => {
     if (!q.trim()) { setResults([]); setHasMore(false); setDidYouMean(null); return; }
     setLoading(true); setError(null); setPage(0); setDidYouMean(null);
     try {
-      const batch = await find(q, { filters: f, mode: m, pageSize: PAGE, page: 0, highlight: true });
+      const batch = await find(q, { filters: f, mode: m, pageSize: PAGE, page: 0, highlight: true, filterExpression: k ? { paragraph: { prop: 'kind', kind: k } } : undefined });
       setResults(batch); setHasMore(batch.length >= PAGE);
       logQuery(q, batch.length);
       // Zero-result recovery: offer a model-rephrased query.
@@ -64,13 +74,13 @@ export default function SearchPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { run(query, filters, mode); }, [query, filters, mode, run]);
+  useEffect(() => { run(query, filters, mode, kind); }, [query, filters, mode, kind, run]);
 
   const loadMore = async () => {
     const next = page + 1;
     setLoadingMore(true);
     try {
-      const batch = await find(query, { filters, mode, pageSize: PAGE, page: next, highlight: true });
+      const batch = await find(query, { filters, mode, pageSize: PAGE, page: next, highlight: true, filterExpression: kindExpr(kind) });
       setResults((r) => [...r, ...batch.filter((b) => !r.some((x) => x.resourceId === b.resourceId))]);
       setPage(next); setHasMore(batch.length >= PAGE);
     } catch { setHasMore(false); } finally { setLoadingMore(false); }
@@ -139,6 +149,16 @@ export default function SearchPage() {
               className={`rounded px-3 py-1 text-xs font-semibold transition-colors ${mode === m.id ? 'bg-ink-900 text-white' : 'text-ink-600 hover:bg-ink-100'}`}>{m.label}</button>
           ))}
         </div>
+        <span className="t-overline ml-2 mr-0.5">Content</span>
+        <div className="flex flex-wrap gap-1.5">
+          <button onClick={() => setKind(null)} aria-pressed={kind === null}
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${kind === null ? 'bg-ink-900 text-white' : 'border border-ink-200 bg-white text-ink-600 hover:bg-ink-100'}`}>All</button>
+          {KINDS.map((k) => (
+            <button key={k.id} onClick={() => setKind(kind === k.id ? null : k.id)} aria-pressed={kind === k.id}
+              title={`Only results whose matched passage came from ${k.label.toLowerCase()}`}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${kind === k.id ? 'bg-ink-900 text-white' : 'border border-ink-200 bg-white text-ink-600 hover:bg-ink-100'}`}>{k.label}</button>
+          ))}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           {results.length > 0 && !imageName && (
             <select value={sort} onChange={(e) => setSort(e.target.value as SortId)} aria-label="Sort results"
@@ -202,7 +222,7 @@ export default function SearchPage() {
                 {loading && <Loader2 size={16} className="animate-spin text-brand-500" />}
               </div>
 
-              {error ? <ErrorState message={error} onRetry={() => run(query, filters, mode)} />
+              {error ? <ErrorState message={error} onRetry={() => run(query, filters, mode, kind)} />
                 : loading ? <SkeletonRows count={4} height="h-24" />
                 : results.length === 0 ? (
                   <EmptyState compact icon={<FileSearch size={22} strokeWidth={1.75} />} title="No results"
