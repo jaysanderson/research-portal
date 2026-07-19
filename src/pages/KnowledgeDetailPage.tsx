@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Download, Sparkles, Loader2, Tags, FileText } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Download, Sparkles, Loader2, Tags, FileText, X } from 'lucide-react';
 import { getResource, resourceFileUrl, resourceFileBlobUrl, summarizeText, find, type FindResult } from '../lib/nuclia';
 import { useChat } from '../lib/useChat';
 import { useCurrentKb, useKbImage } from '../lib/hooks';
@@ -21,6 +21,7 @@ interface Detail {
   text: string;
   thumbnail?: string;
   file?: FileField;
+  files: FileField[];
   labels: { labelset: string; label: string }[];
   entities: Entity[];
   language?: string;
@@ -65,14 +66,16 @@ function extractText(r: any): string {
   return parts.join('\n\n').trim();
 }
 
-function pickFile(r: any): FileField | undefined {
+function pickFiles(r: any): FileField[] {
   const files = r?.data?.files || {};
+  const out: FileField[] = [];
   for (const [fieldId, fv] of Object.entries<any>(files)) {
     const f = fv?.value?.file;
-    if (f) return { fieldId, contentType: f.content_type || '', filename: f.filename };
+    if (f) out.push({ fieldId, contentType: f.content_type || '', filename: f.filename });
   }
-  return undefined;
+  return out;
 }
+function pickFile(r: any): FileField | undefined { return pickFiles(r)[0]; }
 
 export default function KnowledgeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -98,6 +101,7 @@ export default function KnowledgeDetailPage() {
         text: extractText(r),
         thumbnail: r.thumbnail,
         file: pickFile(r),
+        files: pickFiles(r),
         labels: r?.usermetadata?.classifications || [],
         entities: extractEntities(r),
         language: firstLanguage(r),
@@ -142,6 +146,8 @@ export default function KnowledgeDetailPage() {
   // BYO (local) KBs can't pass their key in a media src — fetch the bytes via the
   // proxy (header-auth) into an object URL so PDF/video/image still render inline.
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [pdfPage, setPdfPage] = useState(1);
   useEffect(() => {
     if (!(detail?.file && id && isLocal && embeddable)) { setBlobUrl(null); return; }
     let url: string | null = null; let active = true;
@@ -192,8 +198,34 @@ export default function KnowledgeDetailPage() {
               <img className="mt-5 w-full rounded-xl border border-ink-200" src={mediaUrl!} alt={cleanTitle(detail.title)} />
             )}
             {isPdf && (
-              <div className="mt-5 overflow-hidden rounded-xl border border-ink-200">
-                <iframe title={cleanTitle(detail.title)} src={`${mediaUrl}#view=FitH`} className="h-[80vh] w-full" />
+              <div className="mt-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="t-overline">Page</span>
+                  <input type="number" min={1} value={pdfPage} onChange={(e) => setPdfPage(Math.max(1, Number(e.target.value) || 1))}
+                    aria-label="Jump to PDF page" className="input w-20 py-1 text-sm" />
+                  <span className="text-xs text-ink-400">Jump straight to the page an answer cites.</span>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-ink-200">
+                  <iframe key={pdfPage} title={cleanTitle(detail.title)} src={`${mediaUrl}#page=${pdfPage}&view=FitH`} className="h-[80vh] w-full" />
+                </div>
+              </div>
+            )}
+
+            {/* Multi-image resources: gallery + lightbox (direct-URL KBs) */}
+            {!isLocal && id && kb?.id && detail.files.filter((f) => f.contentType.startsWith('image/')).length > 1 && (
+              <div className="mt-5">
+                <div className="mb-2 t-overline">Images ({detail.files.filter((f) => f.contentType.startsWith('image/')).length})</div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  {detail.files.filter((f) => f.contentType.startsWith('image/')).map((f) => {
+                    const u = resourceFileUrl(id, f.fieldId, kb.id);
+                    if (!u) return null;
+                    return (
+                      <button key={f.fieldId} onClick={() => setLightbox(u)} className="overflow-hidden rounded-lg border border-ink-200 focus-visible:outline-none">
+                        <img src={u} alt={f.filename || ''} loading="lazy" className="h-28 w-full object-cover transition-transform hover:scale-105" />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -278,6 +310,14 @@ export default function KnowledgeDetailPage() {
               </div>
             </div>
           </aside>
+        </div>
+      )}
+
+      {lightbox && (
+        <div role="dialog" aria-modal="true" onClick={() => setLightbox(null)}
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-950/85 p-6 backdrop-blur-sm animate-fade-in">
+          <button onClick={() => setLightbox(null)} aria-label="Close image" className="absolute right-5 top-5 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"><X size={18} /></button>
+          <img src={lightbox} alt="" className="max-h-full max-w-full rounded-lg object-contain shadow-lg" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>

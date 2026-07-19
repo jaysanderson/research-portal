@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { X, Play, Pause, ChevronLeft, ChevronRight, Sparkles, ExternalLink, Quote, CheckCircle2, Compass, Loader2 } from 'lucide-react';
+import { X, Play, Pause, ChevronLeft, ChevronRight, Sparkles, ExternalLink, Quote, CheckCircle2, Compass, Loader2, Volume2, VolumeX } from 'lucide-react';
 import { buildStops, relate, type JourneyStop } from '../../lib/journey';
 import { ConfidenceRing } from './ConfidenceRing';
 import { useCurrentKb, useKbImage } from '../../lib/hooks';
@@ -23,6 +23,7 @@ export function AnswerJourney({ open, query, filters = [], citedIds = [], preset
   const [idx, setIdx] = useState(-1);          // -1 intro · 0..n-1 stops · n outro
   const [rel, setRel] = useState<Record<number, Rel>>({});
   const [playing, setPlaying] = useState(true);
+  const [narrate, setNarrate] = useState(false);
   const [progress, setProgress] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -125,6 +126,23 @@ export function AnswerJourney({ open, query, filters = [], citedIds = [], preset
 
   const relText = atStop ? rel[idx]?.text : '';
 
+  // Narration: speak each stop once its "how this relates" answer has streamed in.
+  useEffect(() => {
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+    if (!synth) return;
+    if (!open || !narrate || !atStop || !curDone) { synth.cancel(); return; }
+    const s = stops[idx];
+    const text = `${cleanTitle(s?.title || '')}. ${relText || ''}`.replace(/[#*_`>[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 700);
+    if (!text) return;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.03;
+    synth.speak(u);
+    return () => synth.cancel();
+  }, [open, narrate, atStop, curDone, idx, relText, stops]);
+  // Always stop speaking when the overlay closes.
+  useEffect(() => () => { try { window.speechSynthesis?.cancel(); } catch { /* */ } }, []);
+
   return createPortal((
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-950/85 p-4 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div className="relative flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-ink-900 text-white shadow-lg ring-1 ring-white/10"
@@ -137,6 +155,8 @@ export function AnswerJourney({ open, query, filters = [], citedIds = [], preset
           </span>
           <div className="flex items-center gap-1">
             <button onClick={() => setPlaying((p) => !p)} aria-label={playing ? 'Pause' : 'Play'} className="rounded-full bg-black/40 p-1.5 text-white/80 backdrop-blur-sm hover:text-white">{playing ? <Pause size={15} /> : <Play size={15} />}</button>
+            <button onClick={() => setNarrate((v) => !v)} aria-label={narrate ? 'Turn narration off' : 'Narrate the journey'} title={narrate ? 'Narration on' : 'Narrate'}
+              className={`rounded-full p-1.5 backdrop-blur-sm ${narrate ? 'bg-white/90 text-ink-900' : 'bg-black/40 text-white/80 hover:text-white'}`}>{narrate ? <Volume2 size={15} /> : <VolumeX size={15} />}</button>
             <button onClick={onClose} aria-label="Close" className="rounded-full bg-black/40 p-1.5 text-white/80 backdrop-blur-sm hover:text-white"><X size={15} /></button>
           </div>
         </div>

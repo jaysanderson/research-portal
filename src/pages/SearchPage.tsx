@@ -7,6 +7,7 @@ import { FacetFilters } from '../components/search/FacetFilters';
 import { AnswerCard } from '../components/search/AnswerCard';
 import { ResultCard } from '../components/search/ResultCard';
 import { ModelPicker } from '../components/ModelPicker';
+import { MicButton } from '../components/MicButton';
 import { EmptyState, ErrorState, SkeletonRows } from '../components/States';
 import { useKbProfile } from '../lib/hooks';
 
@@ -138,6 +139,7 @@ export default function SearchPage() {
             </ul>
           )}
         </div>
+        <MicButton onText={(t) => setInput(t)} className="py-3" />
         <button type="submit" className="btn-primary px-6">Search</button>
       </form>
 

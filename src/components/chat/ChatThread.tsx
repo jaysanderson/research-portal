@@ -5,6 +5,7 @@ import { isRefusal } from '../../lib/nuclia';
 import { Citations } from '../Citations';
 import { AnswerJourney } from '../journey/AnswerJourney';
 import { ReadAloud } from '../ReadAloud';
+import { MicButton } from '../MicButton';
 import type { ChatMessage } from '../../lib/useChat';
 
 export function ChatThread({ messages, busy, onSend, onStop, placeholder, compact, examples }: {
@@ -55,6 +56,7 @@ export function ChatThread({ messages, busy, onSend, onStop, placeholder, compac
           <textarea id="chat-input" value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
             rows={compact ? 1 : 2} placeholder={placeholder || 'Ask a question…'} className="input flex-1 resize-none" />
+          <MicButton onText={(t) => setInput(t)} />
           {busy ? (
             <button type="button" onClick={onStop} className="btn-secondary" aria-label="Stop generating"><Square size={15} /></button>
           ) : (
