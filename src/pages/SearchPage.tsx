@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search as SearchIcon, Loader2, FileSearch, Tag, Sparkles, ImagePlus, X } from 'lucide-react';
-import { find, suggest, rephrase, type FindResult, type RetrievalMode, type Suggestion } from '../lib/nuclia';
+import { Search as SearchIcon, Loader2, FileSearch, Tag, Sparkles, ImagePlus, X, Bookmark } from 'lucide-react';
+import { find, suggest, rephrase, listSearchConfigs, saveSearchConfig, deleteSearchConfig, type FindResult, type RetrievalMode, type Suggestion, type SavedSearch } from '../lib/nuclia';
+import { toast } from '../lib/toast';
 import { logQuery } from '../lib/querylog';
 import { FacetFilters } from '../components/search/FacetFilters';
 import { AnswerCard } from '../components/search/AnswerCard';
@@ -24,8 +25,60 @@ const KINDS = [
   { id: 'TRANSCRIPT', label: 'Transcripts' },
 ] as const;
 type KindId = typeof KINDS[number]['id'];
+const LANGS = [
+  { id: 'en', label: 'English' }, { id: 'es', label: 'Spanish' }, { id: 'fr', label: 'French' },
+  { id: 'de', label: 'German' }, { id: 'pt', label: 'Portuguese' }, { id: 'it', label: 'Italian' }, { id: 'nl', label: 'Dutch' },
+];
 const PAGE = 12;
 const FALLBACK_EXAMPLES = ['key findings', 'comparison', 'best practices', 'recent developments'];
+
+/** Saved searches live on the Knowledge Box (search_configurations), so they follow
+ *  the box across devices rather than sitting in one browser. */
+function SavedSearches({ current, onApply }: { current: SavedSearch; onApply: (s: SavedSearch) => void }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<Record<string, SavedSearch>>({});
+  const ref = useRef<HTMLDivElement>(null);
+
+  const reload = () => listSearchConfigs().then(setItems).catch(() => setItems({}));
+  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const save = async () => {
+    const name = window.prompt('Name this search');
+    if (!name?.trim()) return;
+    try { await saveSearchConfig(name.trim(), current); await reload(); toast(`Saved “${name.trim()}”.`, 'success'); }
+    catch { toast('Could not save this search.', 'error'); }
+  };
+
+  const names = Object.keys(items);
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} title="Saved searches"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 transition-colors hover:border-ink-300">
+        <Bookmark size={14} className="text-brand-600" /> Saved{names.length ? ` (${names.length})` : ''}
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-64 overflow-hidden rounded-lg border border-ink-200 bg-white py-1 shadow-lg animate-fade-in">
+          <button onClick={() => { setOpen(false); save(); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-semibold text-brand-700 hover:bg-brand-50">
+            <Bookmark size={14} /> Save current search
+          </button>
+          {names.length > 0 && <div className="my-1 border-t border-ink-100" />}
+          {names.map((n) => (
+            <div key={n} className="flex items-center gap-1 px-1">
+              <button onClick={() => { onApply(items[n]); setOpen(false); }} className="min-w-0 flex-1 truncate rounded px-2 py-1.5 text-left text-sm text-ink-700 hover:bg-ink-100">{n}</button>
+              <button onClick={async () => { await deleteSearchConfig(n).catch(() => {}); reload(); }} aria-label={`Delete ${n}`} className="shrink-0 px-1.5 text-ink-400 hover:text-data-clay"><X size={13} /></button>
+            </div>
+          ))}
+          {names.length === 0 && <p className="px-3 py-2 text-xs text-ink-400">No saved searches yet.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -43,9 +96,34 @@ export default function SearchPage() {
   const [didYouMean, setDidYouMean] = useState<string | null>(null);
   const [imageName, setImageName] = useState<string | null>(null);
   const [kind, setKind] = useState<KindId | null>(null);
+  const [language, setLanguage] = useState('');
+  const [matchAny, setMatchAny] = useState(false);
+  const [nonce, setNonce] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const kindExpr = (k: KindId | null) => (k ? { paragraph: { prop: 'kind', kind: k } } : undefined);
   const { profile } = useKbProfile();
+
+  // Entity scope arrives via the URL (e.g. from a resource's entity chips).
+  const entityValue = params.get('entity') || '';
+  const entityType = params.get('etype') || 'ORG';
+
+  const parseLabel = (p: string) => { const m = p.match(/^\/classification\.labels\/([^/]+)\/(.+)$/); return m ? { labelset: m[1], label: m[2] } : null; };
+  /** Compose ARAG filter_expression from entity + language + label-any + paragraph kind. */
+  const buildFE = (k: KindId | null, f: string[]) => {
+    const clauses: any[] = [];
+    if (entityValue) clauses.push({ prop: 'entity', subtype: entityType, value: entityValue });
+    if (language) clauses.push({ prop: 'language', language });
+    if (matchAny && f.length > 1) {
+      const ls = f.map(parseLabel).filter(Boolean) as { labelset: string; label: string }[];
+      if (ls.length) clauses.push({ or: ls.map((l) => ({ prop: 'label', ...l })) });
+    }
+    const fe: any = {};
+    if (clauses.length) fe.field = clauses.length === 1 ? clauses[0] : { and: clauses };
+    if (k) fe.paragraph = { prop: 'kind', kind: k };
+    if (fe.field && fe.paragraph) fe.operator = 'and';
+    return Object.keys(fe).length ? fe : undefined;
+  };
+  // Labels go through legacy AND filters unless we're doing an OR (match-any) pass.
+  const legacyFilters = (f: string[]) => (matchAny && f.length > 1 ? [] : f);
   const examples = profile?.topics?.length ? profile.topics : FALLBACK_EXAMPLES;
 
   // Typeahead: ARAG /suggest over indexed paragraphs + extracted entities.
@@ -62,30 +140,35 @@ export default function SearchPage() {
   }, [input, query]);
   const pick = (text: string) => { setInput(text); setQuery(text); setParams({ q: text }); setShowSuggest(false); };
 
-  const run = useCallback(async (q: string, f: string[], m: RetrievalMode, k: KindId | null = null) => {
-    if (!q.trim()) { setResults([]); setHasMore(false); setDidYouMean(null); return; }
+  // Primary search — re-runs whenever the query or any scope changes.
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); setHasMore(false); setDidYouMean(null); return; }
+    let active = true;
     setLoading(true); setError(null); setPage(0); setDidYouMean(null);
-    try {
-      const batch = await find(q, { filters: f, mode: m, pageSize: PAGE, page: 0, highlight: true, filterExpression: k ? { paragraph: { prop: 'kind', kind: k } } : undefined });
-      setResults(batch); setHasMore(batch.length >= PAGE);
-      logQuery(q, batch.length);
-      // Zero-result recovery: offer a model-rephrased query.
-      if (batch.length === 0) { rephrase(q).then((r) => { if (r && r.toLowerCase() !== q.toLowerCase()) setDidYouMean(r); }).catch(() => {}); }
-    } catch (e) { setError(String(e).slice(0, 160)); setResults([]); setHasMore(false); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { run(query, filters, mode, kind); }, [query, filters, mode, kind, run]);
+    find(query, { filters: legacyFilters(filters), mode, pageSize: PAGE, page: 0, highlight: true, filterExpression: buildFE(kind, filters) })
+      .then((batch) => {
+        if (!active) return;
+        setResults(batch); setHasMore(batch.length >= PAGE);
+        logQuery(query, batch.length);
+        if (batch.length === 0) rephrase(query).then((r) => { if (active && r && r.toLowerCase() !== query.toLowerCase()) setDidYouMean(r); }).catch(() => {});
+      })
+      .catch((e) => { if (active) { setError(String(e).slice(0, 160)); setResults([]); setHasMore(false); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, filters.join('|'), mode, kind, language, matchAny, entityValue, entityType, nonce]);
 
   const loadMore = async () => {
     const next = page + 1;
     setLoadingMore(true);
     try {
-      const batch = await find(query, { filters, mode, pageSize: PAGE, page: next, highlight: true, filterExpression: kindExpr(kind) });
+      const batch = await find(query, { filters: legacyFilters(filters), mode, pageSize: PAGE, page: next, highlight: true, filterExpression: buildFE(kind, filters) });
       setResults((r) => [...r, ...batch.filter((b) => !r.some((x) => x.resourceId === b.resourceId))]);
       setPage(next); setHasMore(batch.length >= PAGE);
     } catch { setHasMore(false); } finally { setLoadingMore(false); }
   };
+
+  const clearEntity = () => { const p = new URLSearchParams(params); p.delete('entity'); p.delete('etype'); setParams(p); };
 
   const sorted = useMemo(() => {
     const arr = [...results];
@@ -161,7 +244,25 @@ export default function SearchPage() {
               className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${kind === k.id ? 'bg-ink-900 text-white' : 'border border-ink-200 bg-white text-ink-600 hover:bg-ink-100'}`}>{k.label}</button>
           ))}
         </div>
+        <select value={language} onChange={(e) => setLanguage(e.target.value)} aria-label="Language"
+          className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500">
+          <option value="">Any language</option>
+          {LANGS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+        </select>
+        {filters.length > 1 && (
+          <button onClick={() => setMatchAny((v) => !v)} title="Match all selected labels, or any of them"
+            className="rounded-full border border-ink-200 bg-white px-2.5 py-1 text-xs font-semibold text-ink-600 hover:bg-ink-100">
+            {matchAny ? 'Match any' : 'Match all'}
+          </button>
+        )}
         <div className="ml-auto flex items-center gap-2">
+          <SavedSearches
+            current={{ mode, kind, language, labels: filters, matchAny, query }}
+            onApply={(s) => {
+              setMode(s.mode); setKind((s.kind as KindId) || null); setLanguage(s.language || '');
+              setFilters(s.labels || []); setMatchAny(!!s.matchAny);
+              if (s.query) { setInput(s.query); setQuery(s.query); setParams({ q: s.query }); }
+            }} />
           {results.length > 0 && !imageName && (
             <select value={sort} onChange={(e) => setSort(e.target.value as SortId)} aria-label="Sort results"
               className="rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-ink-700 outline-none focus:border-brand-500">
@@ -190,6 +291,13 @@ export default function SearchPage() {
             </div>
           ) : (
             <>
+              {entityValue && (
+                <div className="flex items-center gap-2 rounded-lg border border-accent-200 bg-accent-50/60 px-3 py-2">
+                  <Tag size={14} className="shrink-0 text-accent-600" />
+                  <span className="text-sm text-ink-700">Scoped to entity <b className="font-semibold">{entityValue}</b> <span className="text-ink-400">({entityType})</span></span>
+                  <button onClick={clearEntity} aria-label="Clear entity scope" className="ml-auto text-ink-400 hover:text-ink-700"><X size={15} /></button>
+                </div>
+              )}
               {filters.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="t-overline mr-1">Filters</span>
@@ -224,7 +332,7 @@ export default function SearchPage() {
                 {loading && <Loader2 size={16} className="animate-spin text-brand-500" />}
               </div>
 
-              {error ? <ErrorState message={error} onRetry={() => run(query, filters, mode, kind)} />
+              {error ? <ErrorState message={error} onRetry={() => setNonce((n) => n + 1)} />
                 : loading ? <SkeletonRows count={4} height="h-24" />
                 : results.length === 0 ? (
                   <EmptyState compact icon={<FileSearch size={22} strokeWidth={1.75} />} title="No results"

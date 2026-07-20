@@ -388,6 +388,35 @@ export async function putSynonyms(synonyms: SynonymMap): Promise<void> {
   await kb('custom-synonyms', { method: 'PUT', body: JSON.stringify({ synonyms }) });
 }
 
+// ---------------- Saved searches (KB search_configurations) ----------------
+// Stored on the Knowledge Box itself, so a saved search follows the box across
+// devices and users — not just this browser.
+
+export interface SavedSearch {
+  mode: RetrievalMode;
+  kind?: string | null;
+  language?: string | null;
+  labels?: string[];
+  matchAny?: boolean;
+  query?: string;
+}
+export async function listSearchConfigs(): Promise<Record<string, SavedSearch>> {
+  const d = await kb<any>('search_configurations');
+  const out: Record<string, SavedSearch> = {};
+  for (const [name, v] of Object.entries<any>(d || {})) if (v?.config?.rp) out[name] = v.config.rp as SavedSearch;
+  return out;
+}
+export async function saveSearchConfig(name: string, saved: SavedSearch): Promise<void> {
+  // `rp` carries the app-level search state; the rest keeps the payload valid for ARAG.
+  await kb(`search_configurations/${encodeURIComponent(name)}`, {
+    method: 'POST',
+    body: JSON.stringify({ kind: 'find', config: { features: FEATURES[saved.mode] || FEATURES.hybrid, reranker: 'predict', rp: saved } }),
+  });
+}
+export async function deleteSearchConfig(name: string): Promise<void> {
+  await kb(`search_configurations/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
 // ---------------- Rephrase & summarize (ARAG /predict) ----------------
 
 /** Rewrite a query for better retrieval (also powers "did you mean"). */

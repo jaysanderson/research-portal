@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Download, Sparkles, Loader2, Tags, FileText, X } from 'lucide-react';
 import { getResource, resourceFileUrl, resourceFileBlobUrl, summarizeText, find, type FindResult } from '../lib/nuclia';
@@ -24,6 +24,7 @@ interface Detail {
   files: FileField[];
   labels: { labelset: string; label: string }[];
   entities: Entity[];
+  transcript: TranscriptSeg[];
   language?: string;
   created?: string;
 }
@@ -43,6 +44,28 @@ function extractEntities(r: any): Entity[] {
     .sort((a, b) => a.text.localeCompare(b.text))
     .slice(0, 18);
 }
+export interface TranscriptSeg { text: string; start: number; end: number }
+/** Timed transcript segments for audio/video (ARAG emits kind:TRANSCRIPT paragraphs
+ *  with start_seconds/end_seconds plus char offsets into the extracted text). */
+function extractTranscript(r: any): TranscriptSeg[] {
+  const segs: TranscriptSeg[] = [];
+  for (const group of Object.values<any>(r?.data || {})) {
+    for (const field of Object.values<any>(group || {})) {
+      const text: string = field?.extracted?.text?.text || '';
+      const paras: any[] = field?.extracted?.metadata?.metadata?.paragraphs || [];
+      for (const p of paras) {
+        const ss = Array.isArray(p?.start_seconds) ? p.start_seconds[0] : p?.start_seconds;
+        if (ss == null) continue;
+        const es = Array.isArray(p?.end_seconds) ? p.end_seconds[0] : p?.end_seconds;
+        const t = text.slice(p?.start ?? 0, p?.end ?? undefined).trim();
+        if (t) segs.push({ text: t, start: Number(ss) || 0, end: Number(es) || 0 });
+      }
+    }
+  }
+  return segs.sort((a, b) => a.start - b.start);
+}
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
 function firstLanguage(r: any): string | undefined {
   for (const group of Object.values<any>(r?.data || {}))
     for (const field of Object.values<any>(group || {})) {
@@ -104,6 +127,7 @@ export default function KnowledgeDetailPage() {
         files: pickFiles(r),
         labels: r?.usermetadata?.classifications || [],
         entities: extractEntities(r),
+        transcript: extractTranscript(r),
         language: firstLanguage(r),
         created: r.created,
       });
@@ -148,6 +172,9 @@ export default function KnowledgeDetailPage() {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
+  const mediaRef = useRef<HTMLVideoElement & HTMLAudioElement>(null);
+  const [playhead, setPlayhead] = useState(0);
+  const seekTo = (s: number) => { const el = mediaRef.current; if (!el) return; el.currentTime = s; el.play?.().catch(() => {}); };
   useEffect(() => {
     if (!(detail?.file && id && isLocal && embeddable)) { setBlobUrl(null); return; }
     let url: string | null = null; let active = true;
@@ -189,10 +216,36 @@ export default function KnowledgeDetailPage() {
             {/* Media: stream video/audio, render PDF/image inline */}
             {mediaResolving && <div className="skeleton mt-5 h-72 w-full rounded-xl" />}
             {isMedia && ct.startsWith('video') && (
-              <video className="mt-5 max-h-[72vh] w-full rounded-xl bg-black" src={mediaUrl!} poster={thumbUrl || undefined} controls preload="metadata" />
+              <video ref={mediaRef} onTimeUpdate={(e) => setPlayhead(e.currentTarget.currentTime)}
+                className="mt-5 max-h-[72vh] w-full rounded-xl bg-black" src={mediaUrl!} poster={thumbUrl || undefined} controls preload="metadata" />
             )}
             {isMedia && ct.startsWith('audio') && (
-              <audio className="mt-5 w-full" src={mediaUrl!} controls preload="metadata" />
+              <audio ref={mediaRef} onTimeUpdate={(e) => setPlayhead(e.currentTarget.currentTime)}
+                className="mt-5 w-full" src={mediaUrl!} controls preload="metadata" />
+            )}
+
+            {/* Timed transcript — click any line to jump the player to that moment */}
+            {detail.transcript.length > 0 && (
+              <div className="card mt-4 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="t-overline">Transcript</span>
+                  <span className="text-xs text-ink-400">{detail.transcript.length} segments · click to jump</span>
+                </div>
+                <ol className="max-h-72 space-y-1 overflow-y-auto">
+                  {detail.transcript.map((s, i) => {
+                    const active = playhead >= s.start && playhead < (s.end || s.start + 1);
+                    return (
+                      <li key={i}>
+                        <button onClick={() => seekTo(s.start)}
+                          className={`flex w-full gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${active ? 'bg-brand-50 text-ink-900' : 'text-ink-600 hover:bg-ink-100'}`}>
+                          <span className={`shrink-0 font-mono text-[11px] ${active ? 'text-brand-700' : 'text-ink-400'}`}>{mmss(s.start)}</span>
+                          <span className="min-w-0">{s.text}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
             )}
             {isMedia && ct.startsWith('image') && (
               <img className="mt-5 w-full rounded-xl border border-ink-200" src={mediaUrl!} alt={cleanTitle(detail.title)} />
@@ -253,7 +306,8 @@ export default function KnowledgeDetailPage() {
                 <div className="mb-1.5 flex items-center gap-1.5 t-overline"><Tags size={12} /> Entities in this resource</div>
                 <div className="flex flex-wrap gap-1.5">
                   {detail.entities.map((e) => (
-                    <button key={e.text} onClick={() => navigate(`/search?q=${encodeURIComponent(e.text)}`)} className="chip-link" title={`${e.type} — search for this entity`}>{e.text}</button>
+                    <button key={e.text} onClick={() => navigate(`/search?q=${encodeURIComponent(e.text)}&entity=${encodeURIComponent(e.text)}&etype=${encodeURIComponent(e.type)}`)}
+                      className="chip-link" title={`${e.type} — find everything mentioning this entity`}>{e.text}</button>
                   ))}
                 </div>
               </div>
